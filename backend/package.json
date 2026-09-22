@@ -5,7 +5,7 @@
   "main": "dist/app/server.js",
   "scripts": {
     "dev": "tsx watch src/app/server.ts",
-    "build": "tsc",
+    "build": "npm install --include=dev && tsc",
     "start": "node dist/app/server.js",
     "worker": "tsx src/workers/index.ts",
     "db:generate": "prisma generate",

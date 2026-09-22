@@ -174,8 +174,26 @@ export default function StreamManagerPage() {
       {/* Structured Stream Table Workspace (Scrollable) */}
       <div className="flex-1 min-h-0 rounded-3xl border border-zylo-border bg-white shadow-xs overflow-hidden flex flex-col">
         {loading ? (
-          <div className="flex flex-1 items-center justify-center p-12">
-            <Loader2 className="h-8 w-8 animate-spin text-zylo-purple" />
+          <div className="flex-1 divide-y divide-zylo-border animate-pulse">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="flex items-center justify-between p-4 gap-4">
+                <div className="flex items-center gap-4 flex-1">
+                  <div className="h-16 w-28 rounded-xl bg-[#ECE8F5] shrink-0" />
+                  <div className="space-y-2 flex-1">
+                    <div className="flex items-center gap-2">
+                      <div className="h-3 w-20 rounded bg-[#ECE8F5]" />
+                      <div className="h-3 w-16 rounded bg-[#ECE8F5]" />
+                    </div>
+                    <div className="h-3.5 w-48 rounded bg-[#ECE8F5]" />
+                    <div className="h-2.5 w-32 rounded bg-[#ECE8F5]" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="h-8 w-8 rounded-xl bg-[#ECE8F5]" />
+                  <div className="h-8 w-8 rounded-xl bg-[#ECE8F5]" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : streams.length > 0 ? (
           <div className="flex-1 overflow-y-auto divide-y divide-zylo-border">

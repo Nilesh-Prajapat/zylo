@@ -22,7 +22,7 @@ import { StreamCard } from '@/components/shared/StreamCard';
 import { CreatorRow } from '@/components/shared/CreatorRow';
 import { SectionHeader } from '@/components/shared/SectionHeader';
 import { Stream, UserProfile } from '@/lib/types';
-import { streamsApi, usersApi } from '@/lib/api';
+import { useLiveStreams, useTrendingCreators } from '@/lib/hooks/use-queries';
 
 const categories: { label: string; icon: typeof Music2 }[] = [
   { label: 'All', icon: LayoutGrid },
@@ -39,30 +39,12 @@ const categories: { label: string; icon: typeof Music2 }[] = [
 
 export default function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [streams, setStreams] = useState<Stream[]>([]);
-  const [creators, setCreators] = useState<UserProfile[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-      setError(null);
-      try {
-        const [liveStreams, trendingCreators] = await Promise.all([
-          streamsApi.getLiveStreams(),
-          usersApi.getTrendingCreators(),
-        ]);
-        setStreams(liveStreams);
-        setCreators(trendingCreators);
-      } catch (err: any) {
-        setError(err.message || 'Failed to load streams');
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
-  }, []);
+  const { data: streams = [], isLoading: loadingStreams, error: streamsError } = useLiveStreams();
+  const { data: creators = [], isLoading: loadingCreators } = useTrendingCreators();
+
+  const loading = loadingStreams;
+  const error = (streamsError as any)?.message || null;
 
   const featuredStream = streams[0];
 

@@ -6,8 +6,10 @@ import { requireAuth, asyncHandler, sendSuccess, validate } from '../../common/m
 import { AppError, ErrorCodes } from '../../common/errors';
 import { getRedis } from '../../infrastructure/redis/redis';
 import { RedisKeys, RedisTTL } from '../../infrastructure/redis/keys';
-import { emitToStream } from '../../realtime/socket';
+import { emitToStream, emitToUser } from '../../realtime/socket';
 import { createNotification } from '../notifications/notification.service';
+import { createRazorpayOrder, verifyRazorpaySignature } from '../../infrastructure/payment/razorpay.service';
+import { env } from '../../config/env';
 
 const router = Router();
 
@@ -71,61 +73,157 @@ router.get('/transactions', requireAuth, asyncHandler(async (req, res) => {
 }));
 
 // Validation Schemas
-const topUpSchema = z.object({
-  amountCoins: z.number().int().min(10).max(500000),
-  amountUsd: z.number().positive(),
-  paymentMethod: z.string().optional().default('Visa •••• 4242'),
-  idempotencyKey: z.string().optional(),
+const createTopupOrderSchema = z.object({
+  amountInr: z.number().int().min(10).max(100000),
 });
 
-// POST /api/v1/wallet/topup (Fake Payment Flow)
-router.post('/topup', requireAuth, validate(topUpSchema), asyncHandler(async (req, res) => {
-  const { amountCoins, amountUsd, paymentMethod, idempotencyKey } = req.body;
+const verifyTopupSchema = z.object({
+  razorpay_order_id: z.string().min(1),
+  razorpay_payment_id: z.string().min(1),
+  razorpay_signature: z.string().min(1),
+  topup_id: z.string().optional(),
+});
+
+// POST /api/v1/wallet/topup/order (Create Razorpay Order server-side)
+router.post('/topup/order', requireAuth, validate(createTopupOrderSchema), asyncHandler(async (req, res) => {
+  const { amountInr } = req.body;
   const userId = req.user!.id;
 
-  if (idempotencyKey) {
-    const existing = await prisma.walletTransaction.findFirst({
-      where: { userId, referenceId: idempotencyKey, type: 'TOP_UP' },
-    });
-    if (existing) {
-      const currentWallet = await prisma.wallet.findUnique({ where: { userId } });
-      sendSuccess(res, { wallet: currentWallet, transaction: existing, message: 'Transaction already completed' });
-      return;
-    }
+  // Rate: ₹10 = 100 credits (1 INR = 10 credits)
+  const credits = Math.floor(amountInr * 10);
+  const receiptId = `topup_${userId.substring(0, 8)}_${Date.now()}`;
+
+  // 1. Create order on Razorpay API server side
+  const razorpayOrder = await createRazorpayOrder({
+    amountInr,
+    receiptId,
+    notes: { userId, credits: credits.toString() },
+  });
+
+  // 2. Save internal topup record with CREATED status
+  const topup = await prisma.walletTopup.create({
+    data: {
+      userId,
+      razorpayOrderId: razorpayOrder.id,
+      amountInr,
+      currency: 'INR',
+      credits,
+      status: 'CREATED',
+    },
+  });
+
+  sendSuccess(res, {
+    orderId: razorpayOrder.id,
+    amountInr,
+    credits,
+    currency: 'INR',
+    keyId: env.RAZORPAY_KEY_ID || 'rzp_test_TfChcyTibFslfx',
+    topupId: topup.id,
+  }, 201);
+}));
+
+// POST /api/v1/wallet/topup/verify (API-based Razorpay signature verification & atomic crediting)
+router.post('/topup/verify', requireAuth, validate(verifyTopupSchema), asyncHandler(async (req, res) => {
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature, topup_id } = req.body;
+  const userId = req.user!.id;
+
+  // 1. Verify Razorpay signature server-side
+  const isValid = verifyRazorpaySignature({
+    razorpayOrderId: razorpay_order_id,
+    razorpayPaymentId: razorpay_payment_id,
+    razorpaySignature: razorpay_signature,
+  });
+
+  if (!isValid) {
+    throw AppError.badRequest('Invalid payment signature verification failed.');
   }
 
-  // Transactionally credit purchasedCoins and add transaction
+  // 2. Find internal top-up record
+  let topup = await prisma.walletTopup.findUnique({
+    where: { razorpayOrderId: razorpay_order_id },
+  });
+
+  if (!topup && topup_id) {
+    topup = await prisma.walletTopup.findUnique({ where: { id: topup_id } });
+  }
+
+  if (!topup) {
+    throw AppError.notFound('Top-up transaction record not found');
+  }
+
+  if (topup.userId !== userId) {
+    throw AppError.forbidden('Unauthorized to verify this top-up transaction');
+  }
+
+  // 3. Exactly-once idempotency check
+  if (topup.status === 'CREDITED') {
+    const currentWallet = await prisma.wallet.findUnique({ where: { userId } });
+    sendSuccess(res, {
+      wallet: currentWallet,
+      topup,
+      message: 'Payment already verified and credited',
+    });
+    return;
+  }
+
+  // 4. Atomic transaction to credit wallet & update top-up status
   const result = await prisma.$transaction(async (tx) => {
-    const wallet = await tx.wallet.upsert({
-      where: { userId },
-      update: { purchasedCoins: { increment: amountCoins } },
-      create: { userId, purchasedCoins: amountCoins, creatorEarnings: 0 },
+    // Mark topup record CREDITED
+    const updatedTopup = await tx.walletTopup.update({
+      where: { id: topup.id },
+      data: {
+        status: 'CREDITED',
+        razorpayPaymentId: razorpay_payment_id,
+        razorpaySignature: razorpay_signature,
+        completedAt: new Date(),
+      },
     });
 
-    const transaction = await tx.walletTransaction.create({
+    // Credit purchasedCoins in wallet
+    const updatedWallet = await tx.wallet.upsert({
+      where: { userId },
+      update: { purchasedCoins: { increment: topup.credits } },
+      create: { userId, purchasedCoins: topup.credits, creatorEarnings: 0 },
+    });
+
+    // Create WalletTransaction record
+    const walletTx = await tx.walletTransaction.create({
       data: {
         userId,
         type: 'TOP_UP',
         balanceType: 'PERSONAL_COINS',
         direction: 'CREDIT',
-        amount: amountCoins,
-        amountUsd,
-        currency: 'USD',
-        referenceId: idempotencyKey || `topup_${Date.now()}`,
-        description: `Top Up +${amountCoins.toLocaleString()} Coins ($${amountUsd.toFixed(2)}) via ${paymentMethod}`,
+        amount: topup.credits,
+        amountUsd: topup.amountInr / 80,
+        currency: 'INR',
+        referenceId: topup.razorpayOrderId,
+        description: `Razorpay Top Up +${topup.credits.toLocaleString()} Credits (₹${topup.amountInr})`,
         status: 'COMPLETED',
+        metadata: {
+          razorpayOrderId: topup.razorpayOrderId,
+          razorpayPaymentId: razorpay_payment_id,
+        },
       },
     });
 
-    return { wallet, transaction };
+    return { wallet: updatedWallet, transaction: walletTx, topup: updatedTopup };
   });
 
-  // Create notification
+  // 5. Emit real-time WebSocket wallet update
+  emitToUser(userId, 'wallet:balance_updated', {
+    wallet: {
+      purchasedCoins: result.wallet.purchasedCoins,
+      creatorEarnings: result.wallet.creatorEarnings,
+    },
+    transaction: result.transaction,
+  });
+
+  // 6. Create notification
   await createNotification({
     userId,
     type: 'TOP_UP_SUCCESS',
     title: 'Top Up Successful!',
-    message: `${amountCoins.toLocaleString()} coins were added to your wallet`,
+    message: `₹${topup.amountInr} payment verified. ${topup.credits.toLocaleString()} credits added to your wallet.`,
     entityType: 'WALLET_TRANSACTION',
     entityId: result.transaction.id,
   });
@@ -136,7 +234,8 @@ router.post('/topup', requireAuth, validate(topUpSchema), asyncHandler(async (re
       creatorEarnings: result.wallet.creatorEarnings,
     },
     transaction: result.transaction,
-  }, 201);
+    topup: result.topup,
+  }, 200);
 }));
 
 const redeemSchema = z.object({

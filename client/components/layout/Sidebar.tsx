@@ -41,8 +41,8 @@ export function Sidebar() {
   return (
     <>
       <aside className="hidden w-[244px] shrink-0 h-screen overflow-hidden flex-col border-r border-zylo-border bg-white px-4 py-6 lg:flex z-30 select-none">
-        <div className="flex items-center justify-center px-3 pb-6">
-          <Logo className="h-10 w-auto" />
+        <div className="flex items-center justify-center px-3 pb-5 pt-1">
+          <Logo className="h-14 w-auto" />
         </div>
 
         <ActiveStreamBanner />

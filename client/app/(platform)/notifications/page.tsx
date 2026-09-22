@@ -1,60 +1,15 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Bell, UserPlus, Gem, Radio, Sparkles, Check, CreditCard, Tag, Loader2 } from 'lucide-react';
-import { Notification, NotificationType } from '@/lib/types';
-import { notificationsApi } from '@/lib/api';
-import { socketClient } from '@/lib/socket';
+import { useState } from 'react';
+import { Bell, UserPlus, Gem, Radio, Check, CreditCard, Tag, Loader2 } from 'lucide-react';
+import { NotificationType } from '@/lib/types';
+import { useNotifications } from '@/lib/hooks/use-notifications';
 
 export default function NotificationsPage() {
   const [filter, setFilter] = useState<'ALL' | 'UNREAD'>('ALL');
-  const [notifList, setNotifList] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchNotifications = useCallback(async () => {
-    try {
-      setLoading(true);
-      const data = await notificationsApi.getNotifications(filter === 'UNREAD');
-      setNotifList(data.notifications || []);
-    } catch (err) {
-      console.error('Failed to fetch notifications:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [filter]);
-
-  useEffect(() => {
-    fetchNotifications();
-
-    socketClient.connect();
-    const handleNewNotification = (newNotif: Notification) => {
-      setNotifList((prev) => [newNotif, ...prev]);
-    };
-
-    socketClient.on('notification:new', handleNewNotification);
-
-    return () => {
-      socketClient.off('notification:new', handleNewNotification);
-    };
-  }, [fetchNotifications]);
-
-  const handleMarkRead = async (id: string) => {
-    try {
-      await notificationsApi.markAsRead(id);
-      setNotifList((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
-    } catch (err) {
-      console.error('Failed to mark read:', err);
-    }
-  };
-
-  const handleMarkAllRead = async () => {
-    try {
-      await notificationsApi.markAllAsRead();
-      setNotifList((prev) => prev.map((n) => ({ ...n, read: true })));
-    } catch (err) {
-      console.error('Failed to mark all read:', err);
-    }
-  };
+  const { notifications, isLoading, markAsRead, markAllAsRead } = useNotifications(
+    filter === 'UNREAD'
+  );
 
   const getIcon = (type: NotificationType) => {
     switch (type) {
@@ -87,7 +42,7 @@ export default function NotificationsPage() {
         </div>
 
         <button
-          onClick={handleMarkAllRead}
+          onClick={() => markAllAsRead()}
           className="flex items-center gap-1.5 w-fit rounded-xl border border-zylo-border bg-white px-4 py-2 text-xs font-extrabold text-zylo-text hover:bg-zylo-warm transition shadow-xs cursor-pointer"
         >
           <Check className="h-3.5 w-3.5 text-zylo-purple" /> Mark all as read
@@ -115,16 +70,24 @@ export default function NotificationsPage() {
       </div>
 
       {/* Notifications List */}
-      {loading ? (
-        <div className="flex h-40 w-full items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-zylo-purple" />
-        </div>
-      ) : notifList.length > 0 ? (
+      {isLoading ? (
         <div className="divide-y divide-zylo-border rounded-3xl border border-zylo-border bg-white shadow-xs overflow-hidden">
-          {notifList.map((item) => (
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex items-center gap-3.5 p-4 animate-pulse">
+              <div className="h-9 w-9 rounded-xl bg-[#ECE8F5] shrink-0" />
+              <div className="space-y-1.5 flex-1">
+                <div className="h-3.5 w-48 rounded bg-[#ECE8F5]" />
+                <div className="h-2.5 w-full max-w-sm rounded bg-[#ECE8F5]" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : notifications.length > 0 ? (
+        <div className="divide-y divide-zylo-border rounded-3xl border border-zylo-border bg-white shadow-xs overflow-hidden">
+          {notifications.map((item) => (
             <div
               key={item.id}
-              onClick={() => !item.read && handleMarkRead(item.id)}
+              onClick={() => !item.read && markAsRead(item.id)}
               className={`flex items-center justify-between p-4 transition cursor-pointer ${
                 !item.read ? 'bg-zylo-soft/40' : 'hover:bg-zylo-warm/40'
               }`}
@@ -153,7 +116,7 @@ export default function NotificationsPage() {
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleMarkRead(item.id);
+                    markAsRead(item.id);
                   }}
                   className="rounded-lg bg-white border border-zylo-border px-2.5 py-1 text-[11px] font-bold text-zylo-purple hover:bg-zylo-soft transition shrink-0 ml-3"
                 >

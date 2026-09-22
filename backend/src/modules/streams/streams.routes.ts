@@ -10,6 +10,7 @@ import { getMediaProvider } from '../../infrastructure/media/livekit.provider';
 import { env } from '../../config/env';
 import { emitToStream } from '../../realtime/socket';
 import { deleteFromR2 } from '../../infrastructure/storage/r2';
+import { createNotification } from '../notifications/notification.service';
 
 const router = Router();
 
@@ -44,9 +45,10 @@ const updateStreamSchema = z.object({
 });
 
 const ALLOWED_TRANSITIONS: Record<StreamStatus, StreamStatus[]> = {
-  SCHEDULED: [StreamStatus.LIVE, StreamStatus.ENDED],
+  SCHEDULED: [StreamStatus.LIVE, StreamStatus.CANCELLED, StreamStatus.ENDED],
   LIVE: [StreamStatus.ENDED],
   ENDED: [],
+  CANCELLED: [],
 };
 
 // ─── POST /api/v1/streams ─────────────────────────────────────
@@ -195,6 +197,27 @@ router.post('/:id/start', requireAuth, asyncHandler(async (req, res) => {
     status: StreamStatus.LIVE,
     startedAt: updated.startedAt?.toISOString(),
   });
+
+  // Notify followers asynchronously
+  try {
+    const followers = await prisma.follow.findMany({
+      where: { followingId: stream.broadcasterId },
+      select: { followerId: true },
+    });
+    const broadcasterName = updated.broadcaster.displayName || updated.broadcaster.username;
+    for (const f of followers) {
+      createNotification({
+        userId: f.followerId,
+        type: 'STREAM_LIVE',
+        title: `${broadcasterName} is LIVE!`,
+        message: `${broadcasterName} started streaming: "${updated.title}"`,
+        entityType: 'STREAM',
+        entityId: stream.id,
+      });
+    }
+  } catch (err) {
+    // Non-fatal notification failure
+  }
 
   sendSuccess(res, { stream: updated });
 }));
@@ -679,14 +702,30 @@ router.post('/:id/cancel', requireAuth, asyncHandler(async (req, res) => {
     throw AppError.forbidden('Not authorized to cancel this stream');
   }
 
+  if (stream.status === StreamStatus.CANCELLED) {
+    sendSuccess(res, { stream });
+    return;
+  }
+
+  if (stream.status !== StreamStatus.SCHEDULED) {
+    throw new AppError(400, ErrorCodes.INVALID_STREAM_TRANSITION,
+      `Cannot cancel a stream with status ${stream.status}`);
+  }
+
   const updated = await prisma.stream.update({
     where: { id: stream.id },
-    data: { status: StreamStatus.ENDED },
+    data: { status: StreamStatus.CANCELLED },
   });
 
   const redis = getRedis();
   await redis.del(RedisKeys.upcomingStreams());
   await redis.del(RedisKeys.streamCache(stream.id));
+
+  // Broadcast realtime event
+  emitToStream(stream.id, 'stream:status_changed', {
+    streamId: stream.id,
+    status: StreamStatus.CANCELLED,
+  });
 
   sendSuccess(res, { stream: updated });
 }));

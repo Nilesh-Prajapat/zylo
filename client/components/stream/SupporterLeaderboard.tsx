@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { streamAnalyticsApi } from '@/lib/api';
+import { socketClient } from '@/lib/socket';
 import { Trophy, Gem, RefreshCw } from 'lucide-react';
 import { Avatar } from '@/components/shared/Avatar';
 
@@ -39,6 +40,15 @@ export function SupporterLeaderboard({ streamId }: SupporterLeaderboardProps) {
 
   useEffect(() => {
     if (streamId) fetchSupporters();
+
+    const handleGiftSent = () => {
+      fetchSupporters();
+    };
+
+    socketClient.on('gift:sent', handleGiftSent);
+    return () => {
+      socketClient.off('gift:sent', handleGiftSent);
+    };
   }, [streamId, scope]);
 
   return (

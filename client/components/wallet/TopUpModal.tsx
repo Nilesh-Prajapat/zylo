@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { walletApi } from '@/lib/api';
-import { X, Gem, CreditCard, CheckCircle2, AlertCircle, Loader2, ArrowLeft, ShieldCheck } from 'lucide-react';
+import { X, Gem, CheckCircle2, AlertCircle, Loader2, ArrowLeft, ShieldCheck } from 'lucide-react';
 
 interface TopUpModalProps {
   isOpen: boolean;
@@ -11,46 +11,96 @@ interface TopUpModalProps {
 }
 
 const PACKAGES = [
-  { coins: 500, price: 5.0, label: '500 Coins', bonus: '' },
-  { coins: 1200, price: 10.0, label: '1,200 Coins', bonus: '+100 Bonus' },
-  { coins: 3200, price: 25.0, label: '3,200 Coins', bonus: '+350 Bonus' },
-  { coins: 7000, price: 50.0, label: '7,000 Coins', bonus: '+1,000 Bonus' },
+  { coins: 100, priceInr: 10, label: '100 Credits', bonus: '' },
+  { coins: 500, priceInr: 50, label: '500 Credits', bonus: '+50 Bonus' },
+  { coins: 1000, priceInr: 100, label: '1,000 Credits', bonus: '+150 Bonus' },
+  { coins: 5000, priceInr: 500, label: '5,000 Credits', bonus: '+1,000 Bonus' },
 ];
 
 export function TopUpModal({ isOpen, onClose, onSuccess }: TopUpModalProps) {
   const [step, setStep] = useState<'SELECT' | 'CONFIRM' | 'PROCESSING' | 'SUCCESS' | 'FAILED'>('SELECT');
-  const [selectedPack, setSelectedPack] = useState(PACKAGES[0]);
-  const [paymentMethod] = useState('Visa •••• 4242');
+  const [selectedPack, setSelectedPack] = useState(PACKAGES[2]); // default ₹100
   const [newBalance, setNewBalance] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [loadingOrder, setLoadingOrder] = useState(false);
+
+  // Load Razorpay Checkout Script
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if ((window as any).Razorpay) return;
+
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    document.body.appendChild(script);
+  }, []);
 
   if (!isOpen) return null;
 
-  const handleStartPayment = () => {
-    setStep('CONFIRM');
-  };
-
-  const handlePayNow = async () => {
-    setStep('PROCESSING');
+  const handleStartRazorpay = async () => {
+    setLoadingOrder(true);
     setErrorMsg(null);
 
     try {
-      // Simulate fake payment delay (1.2s)
-      await new Promise((resolve) => setTimeout(resolve, 1200));
+      // 1. Create order on backend API
+      const orderRes = await walletApi.createTopupOrder(selectedPack.priceInr);
 
-      const res = await walletApi.topUp({
-        amountCoins: selectedPack.coins,
-        amountUsd: selectedPack.price,
-        paymentMethod,
-        idempotencyKey: `topup_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      });
+      // Check if Razorpay SDK loaded
+      if (typeof window === 'undefined' || !(window as any).Razorpay) {
+        // Retry dynamically loading script if needed
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+          script.onload = resolve;
+          script.onerror = () => reject(new Error('Failed to load Razorpay SDK'));
+          document.body.appendChild(script);
+        });
+      }
 
-      setNewBalance(res.wallet?.purchasedCoins ?? null);
-      setStep('SUCCESS');
-      if (onSuccess) onSuccess();
+      // 2. Configure Razorpay Options
+      const options = {
+        key: orderRes.keyId || 'rzp_test_TfChcyTibFslfx',
+        amount: Math.round(orderRes.amountInr * 100),
+        currency: orderRes.currency || 'INR',
+        name: 'Zylo Live',
+        description: `Top up ${orderRes.credits.toLocaleString()} Credits`,
+        order_id: orderRes.orderId,
+        handler: async function (response: any) {
+          setStep('PROCESSING');
+          try {
+            // 3. Server-side API verification of Razorpay signature
+            const verifyRes = await walletApi.verifyTopup({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              topup_id: orderRes.topupId,
+            });
+
+            setNewBalance(verifyRes.wallet?.purchasedCoins ?? null);
+            setStep('SUCCESS');
+            if (onSuccess) onSuccess();
+          } catch (err: any) {
+            setErrorMsg(err.response?.data?.error?.message || err.message || 'Payment verification failed');
+            setStep('FAILED');
+          }
+        },
+        modal: {
+          ondismiss: function () {
+            setLoadingOrder(false);
+          },
+        },
+        theme: {
+          color: '#8B5CF6',
+        },
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.error?.message || err.message || 'Simulated payment failed.');
+      setErrorMsg(err.response?.data?.error?.message || err.message || 'Failed to initiate Razorpay order.');
       setStep('FAILED');
+    } finally {
+      setLoadingOrder(false);
     }
   };
 
@@ -69,8 +119,8 @@ export function TopUpModal({ isOpen, onClose, onSuccess }: TopUpModalProps) {
               <Gem className="h-5 w-5 text-zylo-purple" />
             </div>
             <div>
-              <h2 className="text-base font-extrabold text-zylo-text">Top Up Coins</h2>
-              <p className="text-[11px] font-bold text-zylo-muted">Simulated Payment System (MVP)</p>
+              <h2 className="text-base font-extrabold text-zylo-text">Top Up Credits</h2>
+              <p className="text-[11px] font-bold text-zylo-muted">Razorpay Test Mode Integration</p>
             </div>
           </div>
           {step !== 'PROCESSING' && (
@@ -87,15 +137,15 @@ export function TopUpModal({ isOpen, onClose, onSuccess }: TopUpModalProps) {
         {step === 'SELECT' && (
           <div className="space-y-4">
             <label className="block text-xs font-black uppercase tracking-wider text-zylo-muted">
-              Select Coin Package
+              Select Credit Package
             </label>
 
             <div className="grid grid-cols-2 gap-3">
               {PACKAGES.map((pack) => {
-                const isSelected = selectedPack.coins === pack.coins;
+                const isSelected = selectedPack.priceInr === pack.priceInr;
                 return (
                   <button
-                    key={pack.coins}
+                    key={pack.priceInr}
                     type="button"
                     onClick={() => setSelectedPack(pack)}
                     className={`flex flex-col items-start justify-between rounded-2xl border p-4 text-left transition ${
@@ -112,7 +162,7 @@ export function TopUpModal({ isOpen, onClose, onSuccess }: TopUpModalProps) {
                         </span>
                       )}
                     </div>
-                    <span className="mt-2 text-xs font-bold text-zylo-purple">${pack.price.toFixed(2)} USD</span>
+                    <span className="mt-2 text-xs font-bold text-zylo-purple">₹{pack.priceInr} INR</span>
                   </button>
                 );
               })}
@@ -122,77 +172,33 @@ export function TopUpModal({ isOpen, onClose, onSuccess }: TopUpModalProps) {
               <div>
                 <span className="text-[10px] font-bold text-zylo-muted">Selected</span>
                 <p className="text-xs font-extrabold text-zylo-text">
-                  {selectedPack.coins.toLocaleString()} Coins for ${selectedPack.price.toFixed(2)}
+                  {selectedPack.coins.toLocaleString()} Credits for ₹{selectedPack.priceInr}
                 </p>
               </div>
               <button
                 type="button"
-                onClick={handleStartPayment}
-                className="rounded-xl bg-[#B8FF3D] px-5 py-2.5 text-xs font-black text-black hover:bg-[#a6fa26] transition shadow-xs"
+                onClick={handleStartRazorpay}
+                disabled={loadingOrder}
+                className="flex items-center gap-2 rounded-xl bg-[#B8FF3D] px-5 py-2.5 text-xs font-black text-black hover:bg-[#a6fa26] transition shadow-xs disabled:opacity-50"
               >
-                Continue →
+                {loadingOrder ? <Loader2 className="h-4 w-4 animate-spin" /> : <span>Pay ₹{selectedPack.priceInr} →</span>}
               </button>
             </div>
           </div>
         )}
 
-        {/* STEP 2: Confirm Payment */}
-        {step === 'CONFIRM' && (
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-zylo-border bg-zylo-warm/50 p-4 space-y-3">
-              <div className="flex justify-between items-center border-b border-zylo-border pb-2.5">
-                <span className="text-xs font-bold text-zylo-secondary">Package</span>
-                <span className="text-xs font-black text-zylo-text">+{selectedPack.coins.toLocaleString()} Coins</span>
-              </div>
-              <div className="flex justify-between items-center border-b border-zylo-border pb-2.5">
-                <span className="text-xs font-bold text-zylo-secondary">Price</span>
-                <span className="text-sm font-black text-zylo-purple">${selectedPack.price.toFixed(2)} USD</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-bold text-zylo-secondary">Payment Method</span>
-                <div className="flex items-center gap-1.5 text-xs font-extrabold text-zylo-text">
-                  <CreditCard className="h-4 w-4 text-zylo-purple" />
-                  <span>{paymentMethod}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 text-[10px] font-bold text-zylo-muted bg-gray-50 p-2.5 rounded-xl border border-gray-200">
-              <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
-              <span>Simulated Payment Mode: No real financial charges will be processed.</span>
-            </div>
-
-            <div className="flex items-center justify-between pt-2 border-t border-zylo-border">
-              <button
-                type="button"
-                onClick={() => setStep('SELECT')}
-                className="flex items-center gap-1 rounded-xl border border-zylo-border bg-zylo-warm px-3.5 py-2 text-xs font-bold text-zylo-text hover:bg-zylo-soft"
-              >
-                <ArrowLeft className="h-3.5 w-3.5" /> Back
-              </button>
-              <button
-                type="button"
-                onClick={handlePayNow}
-                className="rounded-xl bg-[#B8FF3D] px-6 py-2.5 text-xs font-black text-black hover:bg-[#a6fa26] transition shadow-md"
-              >
-                Pay ${selectedPack.price.toFixed(2)}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 3: Processing State */}
+        {/* STEP 2: Processing State */}
         {step === 'PROCESSING' && (
           <div className="py-8 flex flex-col items-center justify-center space-y-4 text-center">
             <Loader2 className="h-10 w-10 animate-spin text-zylo-purple" />
             <div>
-              <h3 className="text-sm font-black text-zylo-text">Processing Simulated Payment...</h3>
-              <p className="mt-1 text-xs text-zylo-muted">Adding {selectedPack.coins.toLocaleString()} coins to your wallet</p>
+              <h3 className="text-sm font-black text-zylo-text">Verifying Payment Signature...</h3>
+              <p className="mt-1 text-xs text-zylo-muted">Server is validating your Razorpay transaction</p>
             </div>
           </div>
         )}
 
-        {/* STEP 4: Success State */}
+        {/* STEP 3: Success State */}
         {step === 'SUCCESS' && (
           <div className="py-4 flex flex-col items-center justify-center space-y-4 text-center">
             <div className="rounded-full bg-emerald-100 p-3 text-emerald-600">
@@ -201,11 +207,11 @@ export function TopUpModal({ isOpen, onClose, onSuccess }: TopUpModalProps) {
             <div>
               <h3 className="text-lg font-black text-zylo-text">Top Up Successful!</h3>
               <p className="mt-1 text-xs font-extrabold text-emerald-600">
-                +{selectedPack.coins.toLocaleString()} Coins added to your account
+                +{selectedPack.coins.toLocaleString()} Credits added to your account
               </p>
               {newBalance !== null && (
                 <p className="mt-2 text-xs font-bold text-zylo-secondary">
-                  Updated Balance: <span className="font-black text-zylo-text">{newBalance.toLocaleString()} Coins</span>
+                  Updated Balance: <span className="font-black text-zylo-text">✦ {newBalance.toLocaleString()} Credits</span>
                 </p>
               )}
             </div>
@@ -220,16 +226,16 @@ export function TopUpModal({ isOpen, onClose, onSuccess }: TopUpModalProps) {
           </div>
         )}
 
-        {/* STEP 5: Failed State */}
+        {/* STEP 4: Failed State */}
         {step === 'FAILED' && (
           <div className="py-4 flex flex-col items-center justify-center space-y-4 text-center">
             <div className="rounded-full bg-red-100 p-3 text-red-600">
               <AlertCircle className="h-10 w-10" />
             </div>
             <div>
-              <h3 className="text-base font-black text-zylo-text">Payment Failed</h3>
+              <h3 className="text-base font-black text-zylo-text">Payment Verification Failed</h3>
               <p className="mt-1 text-xs font-semibold text-red-600">
-                {errorMsg || 'Your simulated payment could not be processed.'}
+                {errorMsg || 'Your Razorpay payment signature could not be verified.'}
               </p>
             </div>
 

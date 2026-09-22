@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import {
   Compass,
@@ -13,60 +13,139 @@ import {
   Trophy,
   Users,
   ChevronRight,
-  Loader2,
+  ArrowRight,
+  X,
 } from 'lucide-react';
-import { streamsApi, usersApi } from '@/lib/api';
-import { Stream, UserProfile } from '@/lib/types';
+import { useLiveStreams, useTrendingCreators } from '@/lib/hooks/use-queries';
 import { StreamCard } from '@/components/shared/StreamCard';
 import { SectionHeader } from '@/components/shared/SectionHeader';
 import { Avatar } from '@/components/shared/Avatar';
 
 const exploreCategories = [
-  { label: 'Music', icon: Music2, bg: 'from-pink-500/10 to-purple-500/20', color: 'text-pink-600' },
-  { label: 'Gaming', icon: Gamepad2, bg: 'from-blue-500/10 to-indigo-500/20', color: 'text-blue-600' },
-  { label: 'Just Chatting', icon: MessageCircle, bg: 'from-purple-500/10 to-violet-500/20', color: 'text-zylo-purple' },
-  { label: 'Dance', icon: Sparkles, bg: 'from-amber-500/10 to-yellow-500/20', color: 'text-amber-600' },
-  { label: 'Art', icon: Pencil, bg: 'from-emerald-500/10 to-teal-500/20', color: 'text-emerald-600' },
-  { label: 'Fitness', icon: Trophy, bg: 'from-rose-500/10 to-red-500/20', color: 'text-rose-600' },
+  {
+    label: 'Music',
+    subtitle: 'Live beats.\nReal vibes.',
+    image: '/category/music.webp',
+    fallbackImage: '/category/music.png',
+    bgColor: 'bg-[#f4effc]',
+    btnBg: 'bg-[#ebdffc] text-[#7C3AED]',
+    btnHover: 'group-hover:bg-[#7C3AED] group-hover:text-white',
+    theme: 'purple',
+  },
+  {
+    label: 'Gaming',
+    subtitle: 'Play. Stream.\nBuild together.',
+    image: '/category/gaming.webp',
+    fallbackImage: '/category/gaming.png',
+    bgColor: 'bg-[#f3fce8]',
+    btnBg: 'bg-[#e4f9cc] text-[#4D7C0F]',
+    btnHover: 'group-hover:bg-[#4D7C0F] group-hover:text-white',
+    theme: 'green',
+  },
+  {
+    label: 'Just Chatting',
+    subtitle: 'Real people.\nReal talks.',
+    image: '/category/chatting.webp',
+    fallbackImage: '/category/chatting.png',
+    bgColor: 'bg-[#f4effc]',
+    btnBg: 'bg-[#ebdffc] text-[#7C3AED]',
+    btnHover: 'group-hover:bg-[#7C3AED] group-hover:text-white',
+    theme: 'purple',
+  },
+  {
+    label: 'Dance',
+    subtitle: 'Move. Inspire.\nBelong.',
+    image: '/category/dance.webp',
+    fallbackImage: '/category/dance.png',
+    bgColor: 'bg-[#f3fce8]',
+    btnBg: 'bg-[#e4f9cc] text-[#4D7C0F]',
+    btnHover: 'group-hover:bg-[#4D7C0F] group-hover:text-white',
+    theme: 'green',
+  },
+  {
+    label: 'Art',
+    subtitle: 'Create. Share.\nGrow.',
+    image: '/category/art.webp',
+    fallbackImage: '/category/art.png',
+    bgColor: 'bg-[#f4effc]',
+    btnBg: 'bg-[#ebdffc] text-[#7C3AED]',
+    btnHover: 'group-hover:bg-[#7C3AED] group-hover:text-white',
+    theme: 'purple',
+  },
+  {
+    label: 'Fitness',
+    subtitle: 'Stronger\ntogether.',
+    image: '/category/fitness.webp',
+    fallbackImage: '/category/fitness.png',
+    bgColor: 'bg-[#f3fce8]',
+    btnBg: 'bg-[#e4f9cc] text-[#4D7C0F]',
+    btnHover: 'group-hover:bg-[#4D7C0F] group-hover:text-white',
+    theme: 'green',
+  },
 ];
+
+/* ── Shimmer Skeletons ── */
+function TrendingStreamSkeleton() {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-zylo-border bg-white">
+      <div className="relative aspect-[1.3/1] bg-[#ECE8F5] animate-pulse" />
+      <div className="p-3 space-y-2">
+        <div className="h-3.5 w-3/4 rounded bg-[#ECE8F5] animate-pulse" />
+        <div className="flex items-center gap-2">
+          <div className="h-6 w-6 rounded-full bg-[#ECE8F5] animate-pulse" />
+          <div className="h-2.5 w-20 rounded bg-[#ECE8F5] animate-pulse" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CreatorCardSkeleton() {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-zylo-border bg-white p-3.5 animate-pulse">
+      <div className="h-12 w-12 rounded-full bg-[#ECE8F5] shrink-0" />
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <div className="h-3.5 w-24 rounded bg-[#ECE8F5]" />
+        <div className="h-2.5 w-16 rounded bg-[#ECE8F5]" />
+      </div>
+      <div className="h-4 w-4 rounded bg-[#ECE8F5] shrink-0" />
+    </div>
+  );
+}
 
 export default function ExplorePage() {
   const [selectedCat, setSelectedCat] = useState<string>('All');
-  const [liveStreams, setLiveStreams] = useState<Stream[]>([]);
-  const [trendingCreators, setTrendingCreators] = useState<UserProfile[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        setLoading(true);
-        setError('');
-        const [sList, cList] = await Promise.all([
-          streamsApi.getLiveStreams(),
-          usersApi.getTrendingCreators(),
-        ]);
-        setLiveStreams(sList);
-        setTrendingCreators(cList);
-      } catch (err: any) {
-        setError(err.response?.data?.error?.message || 'Failed to load explore content');
-      } finally {
-        setLoading(false);
-      }
+  const { data: liveStreams = [], isLoading: loadingStreams, error: streamsError } = useLiveStreams();
+  const { data: trendingCreators = [], isLoading: loadingCreators } = useTrendingCreators();
+
+  const loading = loadingStreams;
+  const error = (streamsError as any)?.message || '';
+
+  const handleCategorySelect = (catLabel: string) => {
+    const nextCat = selectedCat === catLabel ? 'All' : catLabel;
+    setSelectedCat(nextCat);
+    if (nextCat !== 'All') {
+      setTimeout(() => {
+        const el = document.getElementById('category-filtered-section');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 50);
     }
-    loadData();
-  }, []);
+  };
 
   const trendingStreams = liveStreams.slice(0, 3);
   const recommendedStreams = liveStreams.slice(3);
 
-  if (loading) {
+  const categoryStreams = selectedCat === 'All' ? [] : liveStreams.filter((s) => {
+    const catLower = selectedCat.toLowerCase();
     return (
-      <div className="flex h-[60vh] w-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-zylo-purple" />
-      </div>
+      (s.vibe && s.vibe.toLowerCase() === catLower) ||
+      s.title.toLowerCase().includes(catLower) ||
+      (s.description && s.description.toLowerCase().includes(catLower))
     );
-  }
+  });
 
   return (
     <div className="mx-auto w-full max-w-[1280px] px-5 py-6 sm:px-8 lg:py-8">
@@ -87,22 +166,88 @@ export default function ExplorePage() {
       )}
 
       {/* Category Grid */}
-      <section className="mb-10 grid grid-cols-2 gap-3.5 sm:grid-cols-3 lg:grid-cols-6">
-        {exploreCategories.map(({ label, icon: Icon, bg, color }) => (
-          <button
-            key={label}
-            onClick={() => setSelectedCat(label)}
-            className={`group flex flex-col items-center gap-2.5 rounded-2xl border ${
-              selectedCat === label ? 'border-zylo-purple bg-zylo-soft' : 'border-zylo-border'
-            } bg-gradient-to-b ${bg} p-4 transition-all duration-200 hover:-translate-y-1 hover:shadow-sm`}
-          >
-            <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm ${color}`}>
-              <Icon className="h-5 w-5" />
-            </div>
-            <span className="text-xs font-bold text-zylo-text">{label}</span>
-          </button>
-        ))}
+      <section className="mb-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5">
+        {exploreCategories.map((cat) => {
+          const isSelected = selectedCat === cat.label;
+          return (
+            <button
+              key={cat.label}
+              onClick={() => handleCategorySelect(cat.label)}
+              className={`group relative flex h-[155px] sm:h-[165px] w-full overflow-hidden rounded-[24px] ${cat.bgColor} p-5 sm:p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-md cursor-pointer select-none ${
+                isSelected ? 'ring-2 ring-zylo-purple' : ''
+              }`}
+            >
+              {/* Left Section: Text Content */}
+              <div className="relative z-10 flex h-full w-[50%] flex-col justify-between pointer-events-none">
+                <div>
+                  <h3 className="text-xl sm:text-[22px] font-extrabold text-[#18181B] tracking-tight leading-none">
+                    {cat.label}
+                  </h3>
+                  <p className="mt-2 text-xs font-medium text-[#64748B] leading-snug whitespace-pre-line">
+                    {cat.subtitle}
+                  </p>
+                </div>
+
+                {/* Small circular arrow button */}
+                <div
+                  className={`flex h-7 w-7 items-center justify-center rounded-full ${cat.btnBg} ${cat.btnHover} transition-all duration-200 shadow-2xs`}
+                >
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </div>
+              </div>
+
+              {/* Background Artwork Image Covering Whole Card */}
+              <div className="absolute inset-0 h-full w-full pointer-events-none overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={cat.image}
+                  alt={cat.label}
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    if (!target.dataset.tried) {
+                      target.dataset.tried = 'true';
+                      target.src = cat.fallbackImage;
+                    }
+                  }}
+                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                />
+              </div>
+            </button>
+          );
+        })}
       </section>
+
+      {/* Active Selected Category Section */}
+      {selectedCat !== 'All' && (
+        <section id="category-filtered-section" className="mb-10 scroll-mt-6 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center justify-between mb-4">
+            <SectionHeader
+              title={`${selectedCat} Broadcasts`}
+              subtitle={`Viewing all live streams in ${selectedCat}`}
+            />
+            <button
+              onClick={() => setSelectedCat('All')}
+              className="flex items-center gap-1.5 rounded-xl border border-zylo-border bg-white px-3 py-1.5 text-xs font-bold text-zylo-secondary hover:bg-zylo-warm hover:text-zylo-text transition shadow-xs cursor-pointer"
+            >
+              <span>Clear Filter</span>
+              <X className="h-3.5 w-3.5 text-zylo-muted" />
+            </button>
+          </div>
+
+          {categoryStreams.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-3xl border border-zylo-border bg-white p-8 text-center shadow-xs">
+              <p className="text-sm font-extrabold text-zylo-text">No active live streams in {selectedCat} right now.</p>
+              <p className="mt-1 text-xs font-medium text-zylo-muted">Be the first creator to go live in {selectedCat}!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              {categoryStreams.map((stream) => (
+                <StreamCard key={stream.id} stream={stream} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Trending Now */}
       <section className="mb-10">
@@ -110,9 +255,16 @@ export default function ExplorePage() {
           title="Trending Now"
           subtitle="Top live broadcasts capturing the community right now"
         />
-        {trendingStreams.length === 0 ? (
-          <div className="mt-4 rounded-3xl border border-zylo-border bg-white p-8 text-center text-xs font-semibold text-zylo-secondary shadow-sm">
-            No live streams right now. Be the first to go live!
+        {loading ? (
+          <div className="mt-4 grid gap-4 sm:grid-cols-3">
+            {[1, 2, 3].map((i) => (
+              <TrendingStreamSkeleton key={i} />
+            ))}
+          </div>
+        ) : trendingStreams.length === 0 ? (
+          <div className="mt-4 flex flex-col items-center justify-center rounded-3xl border border-zylo-border bg-white p-8 text-center shadow-xs">
+            <p className="text-sm font-extrabold text-zylo-text">No live streams right now.</p>
+            <p className="mt-1 text-xs font-medium text-zylo-muted">Be the first to go live on Zylo!</p>
           </div>
         ) : (
           <div className="mt-4 grid gap-4 sm:grid-cols-3">
@@ -182,9 +334,16 @@ export default function ExplorePage() {
           title="Rising Creators"
           subtitle="Fresh voices building vibrant live spaces"
         />
-        {trendingCreators.length === 0 ? (
-          <div className="mt-4 rounded-3xl border border-zylo-border bg-white p-6 text-center text-xs font-semibold text-zylo-secondary shadow-sm">
-            No trending creators found.
+        {loadingCreators ? (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[1, 2, 3, 4].map((i) => (
+              <CreatorCardSkeleton key={i} />
+            ))}
+          </div>
+        ) : trendingCreators.length === 0 ? (
+          <div className="mt-4 flex flex-col items-center justify-center rounded-3xl border border-zylo-border bg-white p-8 text-center shadow-xs">
+            <p className="text-sm font-extrabold text-zylo-text">No trending creators found.</p>
+            <p className="mt-1 text-xs font-medium text-zylo-muted">Check back soon as new creators join!</p>
           </div>
         ) : (
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

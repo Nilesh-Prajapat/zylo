@@ -9,13 +9,16 @@ import { Avatar } from '../shared/Avatar';
 
 import { notificationsApi } from '@/lib/api';
 import { socketClient } from '@/lib/socket';
+import { NotificationPanel } from './NotificationPanel';
+import { useNotifications } from '@/lib/hooks/use-notifications';
 
 export function TopBar() {
   const { user } = useAuth();
   const router = useRouter();
   const [query, setQuery] = useState('');
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { unreadCount } = useNotifications();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -28,27 +31,6 @@ export function TopBar() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Fetch unread count & listen to socket events
-  useEffect(() => {
-    if (!user) return;
-
-    notificationsApi.getUnreadCount().then((count) => {
-      setUnreadCount(count);
-    }).catch(() => {});
-
-    socketClient.connect();
-
-    const handleNewNotification = () => {
-      setUnreadCount((prev) => prev + 1);
-    };
-
-    socketClient.on('notification:new', handleNewNotification);
-
-    return () => {
-      socketClient.off('notification:new', handleNewNotification);
-    };
-  }, [user]);
-
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim()) {
@@ -57,7 +39,7 @@ export function TopBar() {
   };
 
   return (
-    <header className="flex items-center gap-3 border-b border-zylo-border bg-white/80 px-5 py-3.5 backdrop-blur sm:px-8">
+    <header className="flex items-center gap-3 border-b border-zylo-border bg-white/80 px-5 py-3.5 backdrop-blur sm:px-8 relative z-40">
       <form onSubmit={handleSearchSubmit} className="relative flex-1 max-w-md">
         <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zylo-muted" />
         <input
@@ -71,19 +53,31 @@ export function TopBar() {
           Ctrl K
         </span>
       </form>
-      <div className="ml-auto flex items-center gap-2">
-        <Link
-          href="/notifications"
-          className="relative rounded-lg p-2 text-zylo-secondary transition-colors hover:bg-zylo-warm flex items-center justify-center"
-          aria-label="Notifications"
-        >
-          <Bell className="h-[18px] w-[18px]" />
-          {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-zylo-purple px-1 text-[9px] font-black text-white shadow-xs animate-in zoom-in-75">
-              {unreadCount > 99 ? '99+' : unreadCount}
-            </span>
-          )}
-        </Link>
+      <div className="ml-auto flex items-center gap-2 relative">
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setIsNotifOpen((prev) => !prev)}
+            className={`relative rounded-xl p-2 text-zylo-secondary transition-colors hover:bg-zylo-warm flex items-center justify-center cursor-pointer ${
+              isNotifOpen ? 'bg-zylo-soft text-zylo-purple' : ''
+            }`}
+            aria-label="Notifications"
+          >
+            <Bell className="h-[18px] w-[18px]" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-zylo-purple px-1 text-[9px] font-black text-white shadow-xs animate-in zoom-in-75">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {/* Floating Dropdown Panel */}
+          <NotificationPanel
+            isOpen={isNotifOpen}
+            onClose={() => setIsNotifOpen(false)}
+          />
+        </div>
+
         {user ? (
           <Link href={`/profile/${user.id}`} className="flex items-center gap-1.5 rounded-lg p-1 transition-colors hover:bg-zylo-warm">
             <Avatar src={user.avatarUrl} size="h-8 w-8" />

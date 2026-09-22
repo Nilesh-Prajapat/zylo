@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { useRouter } from 'next/navigation';
 import { apiClient, setAccessToken } from './api/axios-client';
 import { socketClient } from './socket';
+import { queryClient } from './query-provider';
 import { UserProfile } from './types';
 
 interface AuthContextType {
@@ -37,6 +38,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAccessToken(null);
       setUser(null);
       socketClient.disconnect();
+      queryClient.clear();
     } finally {
       setLoading(false);
     }
@@ -78,6 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAccessToken(null);
       setUser(null);
       socketClient.disconnect();
+      queryClient.clear();
       router.push('/login');
     }
   };

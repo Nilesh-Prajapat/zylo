@@ -9,7 +9,14 @@ class RealtimeSocketClient {
   private listeners: Map<string, Set<SocketCallback<any>>> = new Map();
 
   public connect() {
-    if (this.socket && this.socket.connected) return;
+    if (this.socket) {
+      if (!this.socket.connected) {
+        const token = getAccessToken();
+        this.socket.auth = { token };
+        this.socket.connect();
+      }
+      return;
+    }
 
     const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:4000';
     const token = getAccessToken();
@@ -18,6 +25,7 @@ class RealtimeSocketClient {
       auth: { token },
       withCredentials: true,
       transports: ['websocket', 'polling'],
+      autoConnect: true,
     });
 
     this.socket.on('connect', () => {
@@ -28,9 +36,10 @@ class RealtimeSocketClient {
       console.log('[Socket] Disconnected:', reason);
     });
 
-    // Re-bind all existing event listeners
+    // Bind all registered listeners cleanly to the socket instance
     this.listeners.forEach((callbacks, event) => {
       callbacks.forEach((cb) => {
+        this.socket?.off(event, cb);
         this.socket?.on(event, cb);
       });
     });
@@ -38,9 +47,11 @@ class RealtimeSocketClient {
 
   public disconnect() {
     if (this.socket) {
+      this.socket.removeAllListeners();
       this.socket.disconnect();
       this.socket = null;
     }
+    this.listeners.clear();
   }
 
   public joinStream(streamId: string) {
@@ -56,10 +67,13 @@ class RealtimeSocketClient {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, new Set());
     }
-    this.listeners.get(event)!.add(callback);
-
-    if (this.socket) {
-      this.socket.on(event, callback);
+    const set = this.listeners.get(event)!;
+    if (!set.has(callback)) {
+      set.add(callback);
+      if (this.socket) {
+        this.socket.off(event, callback);
+        this.socket.on(event, callback);
+      }
     }
   }
 

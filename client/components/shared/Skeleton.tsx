@@ -1,5 +1,5 @@
 export function Skeleton({ className = '' }: { className?: string }) {
-  return <div className={`animate-pulse rounded-md bg-zylo-soft ${className}`} />;
+  return <div className={`animate-pulse rounded-md bg-[#ECE8F5] ${className}`} />;
 }
 
 export function StreamCardSkeleton() {

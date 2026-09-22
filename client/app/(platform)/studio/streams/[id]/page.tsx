@@ -72,8 +72,46 @@ export default function SingleStreamStudioPage() {
 
   if (loading) {
     return (
-      <div className="flex h-[70vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-zylo-purple" />
+      <div className="mx-auto max-w-[1240px] px-5 py-6 sm:px-8 lg:py-8 animate-pulse">
+        {/* Header Skeleton */}
+        <div className="mb-6">
+          <div className="h-3 w-28 rounded bg-[#ECE8F5] mb-3" />
+          <div className="h-8 w-72 rounded-lg bg-[#ECE8F5]" />
+          <div className="mt-2 flex items-center gap-3">
+            <div className="h-3 w-24 rounded bg-[#ECE8F5]" />
+            <div className="h-3 w-24 rounded bg-[#ECE8F5]" />
+            <div className="h-3 w-32 rounded bg-[#ECE8F5]" />
+          </div>
+        </div>
+        {/* Tab Bar Skeleton */}
+        <div className="mb-6 flex gap-4 border-b border-zylo-border pb-3">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="h-3.5 w-16 rounded bg-[#ECE8F5]" />
+          ))}
+        </div>
+        {/* Content Skeleton */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2 rounded-3xl border border-zylo-border bg-white p-6 shadow-xs">
+            <div className="h-5 w-32 rounded bg-[#ECE8F5] mb-4" />
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="rounded-2xl bg-zylo-warm/40 p-4 border border-zylo-border/60">
+                  <div className="h-3 w-16 rounded bg-[#ECE8F5] mb-2" />
+                  <div className="h-6 w-12 rounded bg-[#ECE8F5]" />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-3xl border border-zylo-border bg-white p-6 shadow-xs space-y-3">
+            <div className="h-4 w-36 rounded bg-[#ECE8F5] mb-3" />
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="flex justify-between py-1 border-b border-zylo-border/40 last:border-0">
+                <div className="h-3 w-24 rounded bg-[#ECE8F5]" />
+                <div className="h-3 w-16 rounded bg-[#ECE8F5]" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import {
   Gem,
   ArrowUpRight,
@@ -8,59 +8,35 @@ import {
   History,
   Loader2,
   Sparkles,
-  Gift,
   Copy,
   Check,
-  CreditCard,
   Tag,
   Filter,
 } from 'lucide-react';
-import { walletApi } from '@/lib/api';
-import { Wallet, WalletTransaction, CouponRedemption, UserRole, WalletTransactionType } from '@/lib/types';
+import { WalletTransaction, CouponRedemption, UserRole } from '@/lib/types';
+import { useWalletData } from '@/lib/hooks/use-wallet';
 import { TopUpModal } from '@/components/wallet/TopUpModal';
 import { RedeemModal } from '@/components/wallet/RedeemModal';
 
 export default function WalletPage() {
-  const [wallet, setWallet] = useState<Wallet>({ purchasedCoins: 0, creatorEarnings: 0 });
-  const [userRole, setUserRole] = useState<UserRole>('NORMAL_USER');
-  const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
-  const [redemptions, setRedemptions] = useState<CouponRedemption[]>([]);
   const [activeTab, setActiveTab] = useState<'TRANSACTIONS' | 'COUPONS'>('TRANSACTIONS');
   const [filterType, setFilterType] = useState<string>('ALL');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+
+  const {
+    wallet,
+    userRole,
+    transactions,
+    redemptions,
+    isBalanceLoading,
+    isBalanceRefreshing,
+    isTransactionsLoading,
+    error,
+    invalidateWallet,
+  } = useWalletData(filterType);
 
   const [showTopUpModal, setShowTopUpModal] = useState(false);
   const [showRedeemModal, setShowRedeemModal] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
-
-  const fetchWalletData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const data = await walletApi.getWallet();
-      setWallet(data.wallet || { purchasedCoins: 0, creatorEarnings: 0 });
-      setUserRole(data.userRole || 'NORMAL_USER');
-
-      const txRes = await walletApi.getTransactions({
-        type: filterType === 'ALL' ? undefined : filterType,
-      });
-      setTransactions(txRes.items || []);
-
-      if (data.userRole === 'CREATOR') {
-        const couponList = await walletApi.getRedemptions();
-        setRedemptions(couponList);
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || 'Failed to load wallet data');
-    } finally {
-      setLoading(false);
-    }
-  }, [filterType]);
-
-  useEffect(() => {
-    fetchWalletData();
-  }, [fetchWalletData]);
 
   const handleCopyCode = (code: string) => {
     navigator.clipboard.writeText(code);
@@ -70,24 +46,23 @@ export default function WalletPage() {
 
   const isCreator = userRole === 'CREATOR';
 
-  if (loading) {
-    return (
-      <div className="flex h-[60vh] w-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-zylo-purple" />
-      </div>
-    );
-  }
-
   return (
     <div className="mx-auto w-full max-w-[1280px] px-5 py-6 sm:px-8 lg:py-8 select-none space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-extrabold tracking-[-0.04em] text-zylo-text">
-          Zylo Wallet
-        </h1>
-        <p className="mt-1 text-sm font-medium text-zylo-secondary">
-          Manage your personal coin balance, creator gift earnings, and transaction log.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-[-0.04em] text-zylo-text">
+            Zylo Wallet
+          </h1>
+          <p className="mt-1 text-sm font-medium text-zylo-secondary">
+            Manage your personal coin balance, creator gift earnings, and transaction log.
+          </p>
+        </div>
+        {isBalanceRefreshing && (
+          <div className="flex items-center gap-1.5 rounded-full bg-zylo-warm px-3 py-1 text-[11px] font-bold text-zylo-purple">
+            <Loader2 className="h-3 w-3 animate-spin" /> Syncing...
+          </div>
+        )}
       </div>
 
       {error && (
@@ -110,10 +85,16 @@ export default function WalletPage() {
               </span>
             </div>
             <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-4xl font-black text-zylo-text">
-                ✦ {wallet.purchasedCoins.toLocaleString()}
-              </span>
-              <span className="text-sm font-semibold text-zylo-muted">coins</span>
+              {isBalanceLoading ? (
+                <div className="h-10 w-36 rounded-xl bg-[#ECE8F5] animate-pulse mt-1" />
+              ) : (
+                <>
+                  <span className="text-4xl font-black text-zylo-text">
+                    ✦ {wallet.purchasedCoins.toLocaleString()}
+                  </span>
+                  <span className="text-sm font-semibold text-zylo-muted">coins</span>
+                </>
+              )}
             </div>
             <p className="mt-2 text-xs text-zylo-secondary leading-relaxed">
               Coins available to support creators with virtual gifts during live broadcasts.
@@ -141,10 +122,16 @@ export default function WalletPage() {
                 </span>
               </div>
               <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-4xl font-black text-zylo-purple">
-                  ✦ {wallet.creatorEarnings.toLocaleString()}
-                </span>
-                <span className="text-sm font-semibold text-zylo-muted">earnings</span>
+                {isBalanceLoading ? (
+                  <div className="h-10 w-36 rounded-xl bg-[#ECE8F5] animate-pulse mt-1" />
+                ) : (
+                  <>
+                    <span className="text-4xl font-black text-zylo-purple">
+                      ✦ {wallet.creatorEarnings.toLocaleString()}
+                    </span>
+                    <span className="text-sm font-semibold text-zylo-muted">earnings</span>
+                  </>
+                )}
               </div>
               <p className="mt-2 text-xs text-zylo-secondary leading-relaxed">
                 Gift value received from live stream viewers. Redeemable for reward coupons.
@@ -153,7 +140,7 @@ export default function WalletPage() {
 
             <button
               onClick={() => setShowRedeemModal(true)}
-              className="w-full rounded-2xl bg-zylo-purple py-3.5 text-xs font-black text-white hover:bg-[#6926d1] transition shadow-xs cursor-pointer text-center"
+              className="w-full rounded-2xl border border-zylo-purple/30 bg-white py-3.5 text-xs font-black text-zylo-purple hover:bg-zylo-soft transition shadow-xs cursor-pointer text-center"
             >
               Redeem Earnings
             </button>
@@ -161,60 +148,51 @@ export default function WalletPage() {
         )}
       </div>
 
-      {/* Tabs & History Section */}
-      <section className="pt-4">
-        <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zylo-border pb-3">
-          {/* Main Tabs */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setActiveTab('TRANSACTIONS')}
-              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-black transition ${
-                activeTab === 'TRANSACTIONS'
-                  ? 'bg-zylo-soft text-zylo-purple'
-                  : 'text-zylo-secondary hover:bg-zylo-warm'
-              }`}
-            >
-              <History className="h-4 w-4" /> Transactions
-            </button>
-            {isCreator && (
+      {/* Main Transactions & Coupons Section */}
+      <section className="space-y-4">
+        {/* Section Tabs */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zylo-border pb-3">
+          <div className="flex gap-2">
+            {[
+              { id: 'TRANSACTIONS', label: 'Transactions History', icon: History },
+              ...(isCreator ? [{ id: 'COUPONS', label: 'Redeemed Coupons', icon: Tag }] : []),
+            ].map(({ id, label, icon: Icon }) => (
               <button
-                onClick={() => setActiveTab('COUPONS')}
-                className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-black transition ${
-                  activeTab === 'COUPONS'
-                    ? 'bg-zylo-soft text-zylo-purple'
-                    : 'text-zylo-secondary hover:bg-zylo-warm'
+                key={id}
+                onClick={() => setActiveTab(id as any)}
+                className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-black transition cursor-pointer ${
+                  activeTab === id
+                    ? 'bg-zylo-purple text-white shadow-xs'
+                    : 'bg-white border border-zylo-border text-zylo-secondary hover:bg-zylo-warm'
                 }`}
               >
-                <Tag className="h-4 w-4" /> Redeemed Coupons ({redemptions.length})
+                <Icon className="h-3.5 w-3.5" />
+                <span>{label}</span>
               </button>
-            )}
+            ))}
           </div>
 
-          {/* Filter Pills for Transactions */}
+          {/* Transaction Type Filter Dropdown */}
           {activeTab === 'TRANSACTIONS' && (
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-              <span className="text-[10px] font-black uppercase text-zylo-muted mr-1 flex items-center gap-1">
-                <Filter className="h-3 w-3" /> Filter:
-              </span>
-              {[
-                { id: 'ALL', label: 'All' },
-                { id: 'TOP_UP', label: 'Top Ups' },
-                { id: 'GIFT_SENT', label: 'Gifts Sent' },
-                { id: 'GIFT_RECEIVED', label: 'Gifts Received' },
-                { id: 'REDEMPTION', label: 'Redemptions' },
-              ].map(({ id, label }) => (
-                <button
-                  key={id}
-                  onClick={() => setFilterType(id)}
-                  className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition whitespace-nowrap ${
-                    filterType === id
-                      ? 'bg-zylo-purple text-white'
-                      : 'bg-zylo-warm text-zylo-secondary hover:bg-zylo-soft'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
+            <div className="flex items-center gap-2">
+              <Filter className="h-3.5 w-3.5 text-zylo-muted" />
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+                className="rounded-xl border border-zylo-border bg-white px-3 py-1.5 text-xs font-bold text-zylo-text outline-none focus:ring-2 focus:ring-zylo-purple/30 cursor-pointer"
+              >
+                {[
+                  { value: 'ALL', label: 'All Transactions' },
+                  { value: 'TOP_UP', label: 'Top-ups' },
+                  { value: 'GIFT_SENT', label: 'Gifts Sent' },
+                  { value: 'GIFT_RECEIVED', label: 'Gifts Received' },
+                  { value: 'REDEEMED', label: 'Redemptions' },
+                ].map(({ value, label }) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
         </div>
@@ -222,7 +200,22 @@ export default function WalletPage() {
         {/* Tab 1: Transactions List */}
         {activeTab === 'TRANSACTIONS' && (
           <div>
-            {transactions.length === 0 ? (
+            {isTransactionsLoading ? (
+              <div className="divide-y divide-zylo-border rounded-3xl border border-zylo-border bg-white shadow-xs overflow-hidden">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center justify-between p-4 animate-pulse">
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-xl bg-[#ECE8F5]" />
+                      <div className="space-y-1.5">
+                        <div className="h-3.5 w-32 rounded bg-[#ECE8F5]" />
+                        <div className="h-2.5 w-20 rounded bg-[#ECE8F5]" />
+                      </div>
+                    </div>
+                    <div className="h-4 w-16 rounded bg-[#ECE8F5]" />
+                  </div>
+                ))}
+              </div>
+            ) : transactions.length === 0 ? (
               <div className="rounded-3xl border border-zylo-border bg-white p-8 text-center text-xs font-semibold text-zylo-secondary shadow-xs">
                 No transactions recorded yet.
               </div>
@@ -313,14 +306,14 @@ export default function WalletPage() {
       <TopUpModal
         isOpen={showTopUpModal}
         onClose={() => setShowTopUpModal(false)}
-        onSuccess={fetchWalletData}
+        onSuccess={invalidateWallet}
       />
 
       <RedeemModal
         isOpen={showRedeemModal}
         onClose={() => setShowRedeemModal(false)}
         creatorEarnings={wallet.creatorEarnings}
-        onSuccess={fetchWalletData}
+        onSuccess={invalidateWallet}
       />
     </div>
   );

@@ -195,8 +195,54 @@ export default function StudioDashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex h-[calc(100vh-60px)] items-center justify-center bg-zylo-warm">
-        <Loader2 className="h-8 w-8 animate-spin text-zylo-purple" />
+      <div className="flex flex-col h-full flex-1 min-h-0 bg-zylo-warm overflow-hidden select-none">
+        <div className="flex-1 flex flex-col p-4 lg:p-5 space-y-3.5 overflow-hidden min-h-0 animate-pulse">
+          {/* Banner Skeleton */}
+          <div className="h-28 lg:h-32 w-full rounded-3xl bg-[#ECE8F5] shrink-0" />
+
+          {/* Creator Overview + Streams Grid Skeleton */}
+          <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 overflow-hidden">
+            {/* Left: Stats Card */}
+            <div className="lg:col-span-4 flex flex-col gap-3 min-h-0 shrink-0">
+              <div className="rounded-3xl border border-zylo-border bg-white p-4 shadow-xs space-y-3">
+                <div className="h-3 w-32 rounded bg-[#ECE8F5]" />
+                <div className="space-y-2.5">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="flex items-center justify-between border-b border-zylo-border pb-2 last:border-0">
+                      <div className="h-3 w-20 rounded bg-[#ECE8F5]" />
+                      <div className="h-5 w-10 rounded bg-[#ECE8F5]" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-3xl border border-zylo-border bg-white p-4 shadow-xs">
+                <div className="h-3 w-16 rounded bg-[#ECE8F5] mb-3" />
+                <div className="h-11 w-full rounded-2xl bg-[#ECE8F5]" />
+              </div>
+            </div>
+
+            {/* Right: Streams List */}
+            <div className="lg:col-span-8 flex flex-col rounded-3xl border border-zylo-border bg-white shadow-xs overflow-hidden h-full min-h-0">
+              <div className="p-4 border-b border-zylo-border flex items-center justify-between shrink-0">
+                <div className="h-4 w-24 rounded bg-[#ECE8F5]" />
+                <div className="h-3 w-16 rounded bg-[#ECE8F5]" />
+              </div>
+              <div className="flex-1 divide-y divide-zylo-border">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="flex items-center justify-between p-3.5">
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className="h-11 w-18 rounded-xl bg-[#ECE8F5] shrink-0" />
+                      <div className="space-y-1.5 flex-1">
+                        <div className="h-2.5 w-24 rounded bg-[#ECE8F5]" />
+                        <div className="h-3 w-40 rounded bg-[#ECE8F5]" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -392,8 +438,8 @@ export default function StudioDashboardPage() {
               {[1, 2, 3, 4].map((s) => (
                 <div
                   key={s}
-                  className={`h-1 flex-1 rounded-full transition-colors ${
-                    s <= step ? 'bg-zylo-purple' : 'bg-zylo-border'
+                  className={`h-1.5 flex-1 rounded-full transition-colors ${
+                    s <= step ? 'bg-[#B8FF3D]' : 'bg-zylo-border'
                   }`}
                 />
               ))}
@@ -479,7 +525,7 @@ export default function StudioDashboardPage() {
                       setModalError(null);
                       setStep(2);
                     }}
-                    className="rounded-2xl bg-zylo-purple px-6 py-3 text-xs font-extrabold text-white hover:bg-[#6926d1] transition"
+                    className="rounded-2xl bg-[#B8FF3D] px-6 py-3 text-xs font-black text-black hover:bg-[#a6fa26] transition shadow-xs cursor-pointer"
                   >
                     Next: Thumbnail →
                   </button>
@@ -533,14 +579,14 @@ export default function StudioDashboardPage() {
                   <button
                     type="button"
                     onClick={() => setStep(1)}
-                    className="rounded-2xl border border-zylo-border bg-zylo-warm px-5 py-3 text-xs font-bold text-zylo-text"
+                    className="rounded-2xl border border-zylo-border bg-zylo-warm px-5 py-3 text-xs font-bold text-zylo-text hover:bg-zylo-soft transition"
                   >
                     ← Back
                   </button>
                   <button
                     type="button"
                     onClick={() => { setModalError(null); setStep(3); }}
-                    className="flex-1 rounded-2xl bg-zylo-purple py-3 text-xs font-extrabold text-white hover:bg-[#6926d1] transition"
+                    className="flex-1 rounded-2xl bg-[#B8FF3D] py-3 text-xs font-black text-black hover:bg-[#a6fa26] transition shadow-xs cursor-pointer"
                   >
                     Next: Settings →
                   </button>
@@ -581,14 +627,14 @@ export default function StudioDashboardPage() {
                   <button
                     type="button"
                     onClick={() => setStep(2)}
-                    className="rounded-2xl border border-zylo-border bg-zylo-warm px-5 py-3 text-xs font-bold text-zylo-text"
+                    className="rounded-2xl border border-zylo-border bg-zylo-warm px-5 py-3 text-xs font-bold text-zylo-text hover:bg-zylo-soft transition"
                   >
                     ← Back
                   </button>
                   <button
                     type="button"
                     onClick={() => { setModalError(null); setStep(4); }}
-                    className="flex-1 rounded-2xl bg-zylo-purple py-3 text-xs font-extrabold text-white hover:bg-[#6926d1] transition"
+                    className="flex-1 rounded-2xl bg-[#B8FF3D] py-3 text-xs font-black text-black hover:bg-[#a6fa26] transition shadow-xs cursor-pointer"
                   >
                     Next: Review →
                   </button>

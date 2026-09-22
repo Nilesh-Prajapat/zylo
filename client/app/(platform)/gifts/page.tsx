@@ -1,36 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Gem, Loader2 } from 'lucide-react';
-import { giftApi, walletApi } from '@/lib/api';
-import { Gift } from '@/lib/types';
+import { Loader2 } from 'lucide-react';
+import { useGifts } from '@/lib/hooks/use-queries';
+import { useWalletData } from '@/lib/hooks/use-wallet';
 
 export default function GiftsCatalogPage() {
-  const [giftsList, setGiftsList] = useState<Gift[]>([]);
-  const [balance, setBalance] = useState<number>(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { data: giftsList = [], isLoading: loadingGifts, error: giftsError } = useGifts();
+  const { wallet, isBalanceLoading } = useWalletData();
 
-  useEffect(() => {
-    async function loadGifts() {
-      try {
-        setLoading(true);
-        setError('');
-        const [gList, w] = await Promise.all([
-          giftApi.getGifts(),
-          walletApi.getWallet(),
-        ]);
-        setGiftsList(gList);
-        setBalance(w.wallet.purchasedCoins);
-      } catch (err: any) {
-        setError(err.response?.data?.error?.message || 'Failed to load gifts catalog');
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadGifts();
-  }, []);
+  const loading = loadingGifts || isBalanceLoading;
+  const error = (giftsError as any)?.message || '';
+  const balance = wallet.purchasedCoins;
 
   if (loading) {
     return (

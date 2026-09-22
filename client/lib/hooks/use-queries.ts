@@ -1,5 +1,8 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { streamsApi, walletApi, giftApi, followsApi, usersApi, CreateStreamParams, UpdateStreamParams } from '@/lib/api';
+import { dedupeRequest } from '@/lib/api/cache-utils';
+import { socketClient } from '@/lib/socket';
 import type { Stream, Gift, ChatMessage } from '@/lib/types';
 
 // ─── Query Keys ───────────────────────────────────────────────
@@ -9,6 +12,7 @@ export const queryKeys = {
   profile: (id: string) => ['profile', id] as const,
   liveStreams: ['liveStreams'] as const,
   upcomingStreams: ['upcomingStreams'] as const,
+  trendingCreators: ['trending-creators'] as const,
   stream: (id: string) => ['stream', id] as const,
   streamChat: (id: string) => ['stream-chat', id] as const,
   creatorStreams: (filters?: Record<string, any>) => ['creator-streams', filters] as const,
@@ -26,10 +30,38 @@ export const queryKeys = {
 // ─── Stream Queries ───────────────────────────────────────────
 
 export function useLiveStreams() {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    socketClient.connect();
+
+    const handleViewerCountUpdate = (payload: { streamId: string; viewerCount: number }) => {
+      queryClient.setQueryData<Stream[]>(queryKeys.liveStreams, (oldStreams?: Stream[]) => {
+        if (!oldStreams) return oldStreams;
+        return oldStreams.map((s: Stream) =>
+          s.id === payload.streamId ? { ...s, viewerCount: payload.viewerCount } : s
+        );
+      });
+    };
+
+    socketClient.on('stream:viewer_count', handleViewerCountUpdate);
+    return () => {
+      socketClient.off('stream:viewer_count', handleViewerCountUpdate);
+    };
+  }, [queryClient]);
+
   return useQuery({
     queryKey: queryKeys.liveStreams,
-    queryFn: () => streamsApi.getLiveStreams(),
-    staleTime: 10 * 1000,
+    queryFn: () => dedupeRequest('live-streams', () => streamsApi.getLiveStreams()),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useTrendingCreators() {
+  return useQuery({
+    queryKey: queryKeys.trendingCreators,
+    queryFn: () => dedupeRequest('trending-creators', () => usersApi.getTrendingCreators()),
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -72,17 +104,19 @@ export function useCreatorStreams(params?: {
   status?: string;
   visibility?: string;
 }) {
+  const keyStr = JSON.stringify(params || {});
   return useQuery({
     queryKey: queryKeys.creatorStreams(params),
-    queryFn: () => streamsApi.getMyStreams(params),
+    queryFn: () => dedupeRequest(`creator-streams-${keyStr}`, () => streamsApi.getMyStreams(params)),
+    staleTime: 5 * 60 * 1000,
   });
 }
 
 export function useCreatorStats() {
   return useQuery({
     queryKey: queryKeys.creatorStats,
-    queryFn: () => streamsApi.getMyStats(),
-    staleTime: 60 * 1000,
+    queryFn: () => dedupeRequest('creator-stats', () => streamsApi.getMyStats()),
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -209,12 +243,32 @@ export function useSendGift() {
   });
 }
 
-// ─── Profile Query ────────────────────────────────────────────
+// ─── Profile & Connections Queries ─────────────────────────────
 
 export function useProfile(userId: string) {
   return useQuery({
     queryKey: queryKeys.profile(userId),
-    queryFn: () => usersApi.getUserById(userId),
+    queryFn: () => dedupeRequest(`profile-${userId}`, () => usersApi.getUserById(userId)),
     enabled: !!userId,
+    staleTime: 5 * 60 * 1000, // 5 minutes cache
   });
 }
+
+export function useFollowers(userId: string) {
+  return useQuery({
+    queryKey: ['followers', userId] as const,
+    queryFn: () => dedupeRequest(`followers-${userId}`, () => usersApi.getFollowers(userId)),
+    enabled: !!userId,
+    staleTime: 5 * 60 * 1000, // 5 minutes cache
+  });
+}
+
+export function useFollowing(userId: string) {
+  return useQuery({
+    queryKey: ['following', userId] as const,
+    queryFn: () => dedupeRequest(`following-${userId}`, () => usersApi.getFollowing(userId)),
+    enabled: !!userId,
+    staleTime: 5 * 60 * 1000, // 5 minutes cache
+  });
+}
+

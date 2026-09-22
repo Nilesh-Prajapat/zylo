@@ -18,12 +18,15 @@ import {
   Lock,
   Check,
   LogOut,
+  Video,
 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Avatar } from '@/components/shared/Avatar';
 import { UserProfile, Stream } from '@/lib/types';
-import { usersApi, streamsApi, mediaApi } from '@/lib/api';
+import { usersApi, mediaApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useFollowUser } from '@/hooks/use-follow';
+import { useProfile, useLiveStreams, queryKeys } from '@/lib/hooks/use-queries';
 
 function formatNumber(count?: number): string {
   if (!count) return '0';
@@ -34,15 +37,20 @@ function formatNumber(count?: number): string {
 
 export default function ProfilePage() {
   const params = useParams();
+  const queryClient = useQueryClient();
   const { user: currentUser, logout, refreshSession } = useAuth();
   const profileId = (params?.id as string) || currentUser?.id;
 
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [streams, setStreams] = useState<Stream[]>([]);
+  const isSelf = currentUser && (profileId === currentUser.id || profileId === 'me');
+
+  // React Query cached profile data
+  const { data: profileQueryData, isLoading: loadingProfile } = useProfile(profileId || '');
+  const { data: liveStreams = [] } = useLiveStreams();
+
+  const streams = liveStreams.filter((s) => s.broadcasterId === profileId);
   const [isFollowing, setIsFollowing] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'Streams' | 'About'>('Streams');
+  const [copiedShare, setCopiedShare] = useState(false);
 
   // Edit Profile & Preferences Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -59,39 +67,19 @@ export default function ProfilePage() {
 
   const followMutation = useFollowUser();
 
-  const isSelf = currentUser && (profileId === currentUser.id || profileId === 'me');
+  const profile = isSelf ? currentUser : profileQueryData?.user;
 
   useEffect(() => {
-    async function loadProfile() {
-      if (!profileId) return;
-      setLoading(true);
-      setError(null);
-      try {
-        if (isSelf) {
-          const me = await usersApi.getMe();
-          setProfile(me);
-          setIsFollowing(false);
-          setEditName(me.displayName || me.username || '');
-          setEditBio(me.profile?.bio || '');
-          setEditAvatarUrl(me.avatarUrl || '');
-          setEditCoverImageUrl(me.profile?.coverImageUrl || '');
-        } else {
-          const res = await usersApi.getUserById(profileId);
-          setProfile(res.user);
-          setIsFollowing(!!res.isFollowing);
-        }
-
-        // Load creator streams
-        const userStreams = await streamsApi.getLiveStreams();
-        setStreams(userStreams.filter((s) => s.broadcasterId === profileId));
-      } catch (err: any) {
-        setError(err.message || 'Failed to load profile');
-      } finally {
-        setLoading(false);
-      }
+    if (profile) {
+      setEditName(profile.displayName || profile.username || '');
+      setEditBio(profile.profile?.bio || '');
+      setEditAvatarUrl(profile.avatarUrl || '');
+      setEditCoverImageUrl(profile.profile?.coverImageUrl || '');
     }
-    loadProfile();
-  }, [profileId, isSelf]);
+    if (!isSelf && profileQueryData) {
+      setIsFollowing(Boolean(profileQueryData.isFollowing ?? profileQueryData.user?.isFollowing));
+    }
+  }, [profile, isSelf, profileQueryData]);
 
   const handleFollowToggle = () => {
     if (!profile || isSelf) return;
@@ -100,17 +88,26 @@ export default function ProfilePage() {
       isCurrentlyFollowing: isFollowing,
     });
     setIsFollowing(!isFollowing);
-    setProfile((prev) =>
-      prev
-        ? {
-            ...prev,
-            _count: {
-              ...prev._count,
-              followers: Math.max(0, (prev._count?.followers || 0) + (isFollowing ? -1 : 1)),
-            },
-          }
-        : null
-    );
+  };
+
+  const handleShareProfile = async () => {
+    const url = window.location.href;
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: `${name} on Zylo`,
+          url,
+        });
+        return;
+      } catch {
+        // fallback to clipboard
+      }
+    }
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      await navigator.clipboard.writeText(url);
+      setCopiedShare(true);
+      setTimeout(() => setCopiedShare(false), 2000);
+    }
   };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -153,14 +150,16 @@ export default function ProfilePage() {
     setSavingEdit(true);
     setEditError(null);
     try {
-      const updatedUser = await usersApi.updateProfile({
+      await usersApi.updateProfile({
         displayName: editName,
         bio: editBio,
         avatarUrl: editAvatarUrl || undefined,
         coverImageUrl: editCoverImageUrl || undefined,
       });
-      setProfile(updatedUser);
       await refreshSession();
+      if (profileId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.profile(profileId) });
+      }
       setEditSuccess(true);
       setTimeout(() => {
         setEditSuccess(false);
@@ -173,19 +172,55 @@ export default function ProfilePage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex h-96 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-zylo-purple" />
-      </div>
-    );
-  }
-
-  if (error || !profile) {
+  if (!profile) {
+    if (loadingProfile) {
+      return (
+        <div className="mx-auto w-full max-w-[1280px] px-5 py-6 sm:px-8 lg:py-8 select-none">
+          <div className="rounded-3xl border border-zylo-border bg-white shadow-xs overflow-hidden animate-pulse">
+            {/* Cover Banner Skeleton */}
+            <div className="h-[200px] sm:h-[260px] w-full bg-[#ECE8F5]" />
+            {/* Profile Info Skeleton */}
+            <div className="px-6 sm:px-8 pb-6 border-b border-zylo-border bg-white">
+              <div className="flex items-end gap-5">
+                <div className="-mt-14 sm:-mt-16 shrink-0">
+                  <div className="h-24 w-24 sm:h-28 sm:w-28 rounded-full bg-[#ECE8F5] ring-4 ring-white" />
+                </div>
+                <div className="pt-2 space-y-2 flex-1">
+                  <div className="h-7 w-48 rounded-lg bg-[#ECE8F5]" />
+                  <div className="h-3.5 w-28 rounded bg-[#ECE8F5]" />
+                  <div className="flex items-center gap-4 pt-1">
+                    <div className="h-3 w-20 rounded bg-[#ECE8F5]" />
+                    <div className="h-3 w-20 rounded bg-[#ECE8F5]" />
+                  </div>
+                </div>
+              </div>
+            </div>
+            {/* Tab Bar Skeleton */}
+            <div className="px-6 sm:px-8 border-b border-zylo-border bg-zylo-warm/20">
+              <div className="flex gap-6 py-3.5">
+                <div className="h-3.5 w-16 rounded bg-[#ECE8F5]" />
+                <div className="h-3.5 w-12 rounded bg-[#ECE8F5]" />
+              </div>
+            </div>
+            {/* Content Skeleton */}
+            <div className="p-6 sm:p-8">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i}>
+                    <div className="aspect-video w-full rounded-lg bg-[#ECE8F5]" />
+                    <div className="mt-2 h-3 w-3/4 rounded bg-[#ECE8F5]" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="mx-auto my-12 max-w-md rounded-2xl border border-red-200 bg-red-50 p-8 text-center">
         <AlertCircle className="mx-auto h-8 w-8 text-red-500" />
-        <h3 className="mt-2 text-sm font-bold text-red-700">{error || 'Profile not found'}</h3>
+        <h3 className="mt-2 text-sm font-bold text-red-700">Profile not found</h3>
       </div>
     );
   }
@@ -198,96 +233,113 @@ export default function ProfilePage() {
   const followingCount = profile._count?.following || 0;
 
   return (
-    <div className="mx-auto w-full max-w-[1280px] px-5 py-6 sm:px-8 lg:py-8">
-      {/* Profile Cover Banner */}
-      <div className="relative h-[200px] sm:h-[260px] w-full overflow-hidden rounded-3xl bg-zylo-soft border border-zylo-border">
-        <img src={coverImage} alt={name} className="h-full w-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-      </div>
+    <div className="mx-auto w-full max-w-[1280px] px-5 py-6 sm:px-8 lg:py-8 select-none">
+      {/* Profile Card Container */}
+      <div className="rounded-3xl border border-zylo-border bg-white shadow-xs overflow-hidden">
+        {/* Cover Banner */}
+        <div className="relative h-[200px] sm:h-[260px] w-full bg-zylo-soft overflow-hidden">
+          <img src={coverImage} alt={name} className="h-full w-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+        </div>
 
-      {/* Profile Info Header */}
-      <div className="relative z-10 -mt-14 px-4 sm:px-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div className="flex flex-col sm:flex-row sm:items-end gap-4">
-          <Avatar src={avatar} size="h-24 w-24 sm:h-28 sm:w-28" className="ring-4 ring-white shadow-xl" />
-          <div className="mb-1">
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-extrabold text-zylo-text sm:text-3xl">{name}</h1>
-              {profile.role === 'CREATOR' && <CheckCircle2 className="h-5 w-5 text-zylo-purple fill-current" />}
+        {/* Profile Info Header */}
+        <div className="px-6 sm:px-8 pb-6 border-b border-zylo-border bg-white">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-end gap-5">
+              <div className="-mt-14 sm:-mt-16 shrink-0 relative z-10">
+                <Avatar src={avatar} size="h-24 w-24 sm:h-28 sm:w-28" className="ring-4 ring-white shadow-xl bg-white" />
+              </div>
+              <div className="pt-2 sm:pt-0 space-y-1">
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl font-extrabold text-zylo-text sm:text-3xl tracking-tight">{name}</h1>
+                </div>
+                <p className="text-xs font-semibold text-zylo-muted">@{profile.username}</p>
+
+                {/* Followers & Following Stats */}
+                <div className="pt-1.5 flex items-center gap-4 text-xs">
+                  <Link href={`/profile/${profile.id}/followers`} className="group flex items-center gap-1 hover:opacity-80 transition">
+                    <span className="font-extrabold text-zylo-text group-hover:text-zylo-purple">{formatNumber(followerCount)}</span>
+                    <span className="font-medium text-zylo-muted group-hover:text-zylo-purple">Followers</span>
+                  </Link>
+                  <span className="text-zylo-border">•</span>
+                  <Link href={`/profile/${profile.id}/following`} className="group flex items-center gap-1 hover:opacity-80 transition">
+                    <span className="font-extrabold text-zylo-text group-hover:text-zylo-purple">{formatNumber(followingCount)}</span>
+                    <span className="font-medium text-zylo-muted group-hover:text-zylo-purple">Following</span>
+                  </Link>
+                </div>
+              </div>
             </div>
-            <p className="text-sm font-semibold text-zylo-muted">@{profile.username}</p>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2 pt-2 sm:pt-0">
+              {isSelf ? (
+                <button
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="flex items-center gap-2 rounded-xl border border-zylo-border bg-white px-4 py-2.5 text-xs font-bold text-zylo-text hover:bg-zylo-warm transition shadow-xs cursor-pointer"
+                >
+                  <Edit3 className="h-4 w-4" />
+                  <span>Edit Profile & Preferences</span>
+                </button>
+              ) : (
+                <button
+                  onClick={handleFollowToggle}
+                  disabled={followMutation.isPending}
+                  className={`rounded-xl px-5 py-2.5 text-xs font-extrabold shadow-xs transition cursor-pointer disabled:opacity-50 ${
+                    isFollowing
+                      ? 'border border-zylo-border bg-white text-zylo-text hover:bg-zylo-warm'
+                      : 'bg-zylo-purple text-white hover:bg-[#6926d1]'
+                  }`}
+                >
+                  {isFollowing ? 'Following' : '+ Follow'}
+                </button>
+              )}
+              <button
+                onClick={handleShareProfile}
+                className="relative flex items-center justify-center rounded-xl border border-zylo-border bg-white p-2.5 text-zylo-secondary hover:bg-zylo-warm transition shadow-xs cursor-pointer"
+                title="Share Profile"
+              >
+                {copiedShare ? <Check className="h-4 w-4 text-emerald-600" /> : <Share2 className="h-4 w-4" />}
+                {copiedShare && (
+                  <span className="absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-zylo-text px-2.5 py-1 text-[10px] font-bold text-white shadow-lg animate-in zoom-in-75">
+                    Copied!
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2">
-          {isSelf ? (
-            <button
-              onClick={() => setIsEditModalOpen(true)}
-              className="flex items-center gap-2 rounded-xl border border-zylo-border bg-white px-4 py-2.5 text-xs font-bold text-zylo-text hover:bg-zylo-warm transition shadow-xs"
-            >
-              <Edit3 className="h-4 w-4" />
-              <span>Edit Profile & Preferences</span>
-            </button>
-          ) : (
-            <button
-              onClick={handleFollowToggle}
-              disabled={followMutation.isPending}
-              className={`rounded-xl px-5 py-2.5 text-xs font-extrabold shadow-xs transition disabled:opacity-50 ${
-                isFollowing
-                  ? 'border border-zylo-border bg-white text-zylo-text hover:bg-zylo-warm'
-                  : 'bg-zylo-purple text-white hover:bg-[#6926d1]'
-              }`}
-            >
-              {isFollowing ? 'Following' : '+ Follow'}
-            </button>
-          )}
-          <button className="rounded-xl border border-zylo-border bg-white p-2.5 text-zylo-secondary hover:bg-zylo-warm transition shadow-xs">
-            <Share2 className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Bio & Social Stats */}
-      <div className="mt-6 px-4 sm:px-8">
-        <p className="max-w-xl text-sm leading-relaxed text-zylo-secondary">{bio}</p>
-
-        <div className="mt-5 flex items-center gap-6 border-y border-zylo-border py-4">
-          <Link href={`/profile/${profile.id}/followers`} className="group flex items-center gap-1.5 hover:opacity-80 transition">
-            <span className="text-base font-extrabold text-zylo-text group-hover:text-zylo-purple">{formatNumber(followerCount)}</span>
-            <span className="text-xs text-zylo-muted group-hover:text-zylo-purple">Followers</span>
-          </Link>
-          <Link href={`/profile/${profile.id}/following`} className="group flex items-center gap-1.5 hover:opacity-80 transition">
-            <span className="text-base font-extrabold text-zylo-text group-hover:text-zylo-purple">{formatNumber(followingCount)}</span>
-            <span className="text-xs text-zylo-muted group-hover:text-zylo-purple">Following</span>
-          </Link>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="mt-8 px-4 sm:px-8">
-        <div className="flex border-b border-zylo-border">
-          {(['Streams', 'About'] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-6 py-3 text-xs font-bold transition border-b-2 ${
-                activeTab === tab
-                  ? 'border-zylo-purple text-zylo-purple'
-                  : 'border-transparent text-zylo-muted hover:text-zylo-text'
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
+        {/* Tab Navigation */}
+        <div className="px-6 sm:px-8 border-b border-zylo-border bg-zylo-warm/20">
+          <div className="flex gap-6">
+            {(['Streams', 'About'] as const).map((tab) => {
+              const isActive = activeTab === tab;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`py-3.5 text-xs font-black transition cursor-pointer border-b-2 -mb-px ${
+                    isActive
+                      ? 'border-zylo-purple text-zylo-purple'
+                      : 'border-transparent text-zylo-muted hover:text-zylo-text'
+                  }`}
+                >
+                  {tab}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Tab Content */}
-        <div className="mt-6">
+        {/* Tab Content Body */}
+        <div className="p-6 sm:p-8">
           {activeTab === 'Streams' && (
             <div>
               {streams.length === 0 ? (
-                <div className="rounded-2xl border border-zylo-border bg-white p-8 text-center text-xs text-zylo-secondary">
-                  No active streams from this creator right now.
+                <div className="flex flex-col items-center justify-center rounded-2xl border border-zylo-border/60 bg-zylo-warm/30 p-12 text-center">
+                  <Video className="h-8 w-8 text-zylo-muted mb-2" />
+                  <p className="text-sm font-extrabold text-zylo-text">No active streams from {name} right now.</p>
+                  <p className="mt-1 text-xs font-medium text-zylo-muted">Check back later when {name} goes live!</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
@@ -316,11 +368,20 @@ export default function ProfilePage() {
           )}
 
           {activeTab === 'About' && (
-            <div className="max-w-xl rounded-2xl border border-zylo-border bg-white p-6">
-              <h3 className="text-sm font-extrabold text-zylo-text">About {name}</h3>
-              <p className="mt-2 text-xs leading-relaxed text-zylo-secondary">{bio}</p>
-              <div className="mt-4 flex items-center gap-2 text-xs text-zylo-muted">
-                <Calendar className="h-4 w-4" /> Account Type: <span className="font-bold text-zylo-purple">{profile.role}</span>
+            <div className="max-w-2xl rounded-2xl border border-zylo-border bg-zylo-warm/30 p-6 space-y-4">
+              <div>
+                <h3 className="text-sm font-extrabold text-zylo-text">About {name}</h3>
+                <p className="mt-2 text-xs leading-relaxed text-zylo-secondary whitespace-pre-line">{bio}</p>
+              </div>
+              <div className="pt-4 border-t border-zylo-border flex flex-wrap gap-6 text-xs font-semibold text-zylo-muted">
+                <div className="flex items-center gap-1.5">
+                  <User className="h-4 w-4 text-zylo-purple" />
+                  <span>Username: <strong className="text-zylo-text">@{profile.username}</strong></span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Calendar className="h-4 w-4 text-zylo-purple" />
+                  <span>Account Type: <strong className="text-zylo-purple">{profile.role}</strong></span>
+                </div>
               </div>
             </div>
           )}

@@ -32,6 +32,50 @@ function formatViewers(count: number): string {
   return count.toString();
 }
 
+function CountdownDisplay({ scheduledAt }: { scheduledAt: string }) {
+  const [timeLeft, setTimeLeft] = useState<{ hours: number; minutes: number; seconds: number } | null>(null);
+
+  useEffect(() => {
+    function calc() {
+      const diff = new Date(scheduledAt).getTime() - Date.now();
+      if (diff <= 0) {
+        setTimeLeft({ hours: 0, minutes: 0, seconds: 0 });
+        return;
+      }
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      setTimeLeft({ hours, minutes, seconds });
+    }
+    calc();
+    const interval = setInterval(calc, 1000);
+    return () => clearInterval(interval);
+  }, [scheduledAt]);
+
+  if (!timeLeft) return null;
+
+  const pad = (n: number) => n.toString().padStart(2, '0');
+
+  return (
+    <div className="mt-4 flex items-center justify-center gap-2">
+      <div className="flex flex-col items-center bg-black/60 border border-white/10 rounded-2xl px-3.5 py-1.5 min-w-[56px]">
+        <span className="text-lg font-black text-amber-400">{pad(timeLeft.hours)}</span>
+        <span className="text-[9px] font-bold text-zylo-muted uppercase tracking-wider">Hours</span>
+      </div>
+      <span className="text-lg font-black text-amber-400">:</span>
+      <div className="flex flex-col items-center bg-black/60 border border-white/10 rounded-2xl px-3.5 py-1.5 min-w-[56px]">
+        <span className="text-lg font-black text-amber-400">{pad(timeLeft.minutes)}</span>
+        <span className="text-[9px] font-bold text-zylo-muted uppercase tracking-wider">Mins</span>
+      </div>
+      <span className="text-lg font-black text-amber-400">:</span>
+      <div className="flex flex-col items-center bg-black/60 border border-white/10 rounded-2xl px-3.5 py-1.5 min-w-[56px]">
+        <span className="text-lg font-black text-amber-400">{pad(timeLeft.seconds)}</span>
+        <span className="text-[9px] font-bold text-zylo-muted uppercase tracking-wider">Secs</span>
+      </div>
+    </div>
+  );
+}
+
 export default function StreamViewerPage() {
   const params = useParams();
   const { user } = useAuth();
@@ -251,6 +295,8 @@ export default function StreamViewerPage() {
                     ? `Scheduled to start at ${new Date(stream.scheduledAt).toLocaleString()}`
                     : 'The creator is preparing for this live stream. It will start shortly.'}
                 </p>
+
+                {stream.scheduledAt && <CountdownDisplay scheduledAt={stream.scheduledAt} />}
               </div>
             </div>
           ) : stream.replayUrl ? (

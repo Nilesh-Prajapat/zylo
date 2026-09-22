@@ -56,9 +56,14 @@ export const usersApi = {
     return res.data.data.user;
   },
 
-  async getUserById(id: string): Promise<{ user: UserProfile; isFollowing?: boolean }> {
+  async getUserById(id: string): Promise<{ user: UserProfile & { isFollowing?: boolean }; isFollowing?: boolean }> {
     const res = await apiClient.get(`/users/${id}`);
-    return res.data.data;
+    const data = res.data.data;
+    const isFollowing = Boolean(data.isFollowing ?? data.user?.isFollowing);
+    return {
+      user: { ...data.user, isFollowing },
+      isFollowing,
+    };
   },
 
   async updateProfile(data: { displayName?: string; bio?: string; avatarUrl?: string; coverImageUrl?: string }) {
@@ -243,6 +248,16 @@ export const walletApi = {
 
   async topUp(data: { amountCoins: number; amountUsd: number; paymentMethod?: string; idempotencyKey?: string }) {
     const res = await apiClient.post('/wallet/topup', data);
+    return res.data.data;
+  },
+
+  async createTopupOrder(amountInr: number): Promise<{ orderId: string; amountInr: number; credits: number; currency: string; keyId: string; topupId: string }> {
+    const res = await apiClient.post('/wallet/topup/order', { amountInr });
+    return res.data.data;
+  },
+
+  async verifyTopup(data: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string; topup_id?: string }) {
+    const res = await apiClient.post('/wallet/topup/verify', data);
     return res.data.data;
   },
 

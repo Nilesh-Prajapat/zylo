@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import type { UserProfile } from '@/lib/types';
 import { Avatar } from './Avatar';
 import { followsApi } from '@/lib/api';
@@ -51,22 +52,24 @@ export function FollowButton({
   );
 }
 
-export function CreatorCard({ creator }: { creator: UserProfile }) {
+export function CreatorCard({ creator }: { creator: UserProfile & { isFollowing?: boolean } }) {
   const name = creator.displayName || creator.username;
   const avatar = creator.avatarUrl;
 
   return (
-    <div className="flex items-center gap-3">
-      <Avatar src={avatar} size="h-11 w-11" />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1">
-          <p className="truncate text-sm font-bold text-zylo-text">{name}</p>
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-zylo-border bg-white p-3.5 transition hover:border-zylo-purple/30 shadow-xs">
+      <Link href={`/profile/${creator.id}`} className="flex items-center gap-3 min-w-0 flex-1 group">
+        <Avatar src={avatar} size="h-11 w-11" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1">
+            <p className="truncate text-sm font-bold text-zylo-text group-hover:text-zylo-purple transition">{name}</p>
+          </div>
+          <p className="truncate text-xs text-zylo-muted">
+            @{creator.username} {creator._count?.followers ? `· ${creator._count.followers} followers` : ''}
+          </p>
         </div>
-        <p className="truncate text-xs text-zylo-muted">
-          @{creator.username} {creator._count?.followers ? `· ${creator._count.followers} followers` : ''}
-        </p>
-      </div>
-      <FollowButton creatorId={creator.id} compact />
+      </Link>
+      <FollowButton creatorId={creator.id} initialFollowing={!!creator.isFollowing} compact />
     </div>
   );
 }

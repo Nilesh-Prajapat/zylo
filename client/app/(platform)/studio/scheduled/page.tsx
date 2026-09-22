@@ -85,8 +85,34 @@ export default function ScheduledStreamsPage() {
 
   if (loading) {
     return (
-      <div className="flex h-[calc(100vh-60px)] items-center justify-center bg-zylo-warm">
-        <Loader2 className="h-8 w-8 animate-spin text-zylo-purple" />
+      <div className="mx-auto max-w-[1280px] px-5 py-6 sm:px-8 lg:py-8 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-widest text-zylo-purple">
+              <Calendar className="h-4 w-4" /> Creator Studio
+            </div>
+            <h1 className="mt-1 text-3xl font-extrabold tracking-[-0.04em] text-zylo-text">
+              Scheduled Streams
+            </h1>
+          </div>
+        </div>
+        <div className="rounded-3xl border border-zylo-border bg-white shadow-sm overflow-hidden animate-pulse">
+          <div className="divide-y divide-zylo-border">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center justify-between p-5 gap-4">
+                <div className="flex items-start gap-4">
+                  <div className="h-12 w-12 rounded-2xl bg-[#ECE8F5] shrink-0" />
+                  <div className="space-y-2">
+                    <div className="h-3 w-20 rounded bg-[#ECE8F5]" />
+                    <div className="h-4 w-48 rounded bg-[#ECE8F5]" />
+                    <div className="h-2.5 w-32 rounded bg-[#ECE8F5]" />
+                  </div>
+                </div>
+                <div className="h-8 w-28 rounded-xl bg-[#ECE8F5]" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

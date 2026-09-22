@@ -13,8 +13,38 @@ export function useFollowUser(defaultUserId?: string) {
 
   const followMutation = useMutation({
     mutationFn: (targetId: string) => followsApi.follow(targetId),
+    onMutate: async (targetId: string) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.profile(targetId) });
+      const previousProfile = queryClient.getQueryData(queryKeys.profile(targetId));
+
+      queryClient.setQueryData(queryKeys.profile(targetId), (old: any) => {
+        if (!old) return old;
+        const currentCount = old.user?._count?.followers || 0;
+        return {
+          ...old,
+          isFollowing: true,
+          user: {
+            ...old.user,
+            isFollowing: true,
+            _count: {
+              ...old.user?._count,
+              followers: currentCount + 1,
+            },
+          },
+        };
+      });
+
+      return { previousProfile };
+    },
+    onError: (err, targetId, context) => {
+      if (context?.previousProfile) {
+        queryClient.setQueryData(queryKeys.profile(targetId), context.previousProfile);
+      }
+    },
     onSuccess: (_, targetId) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.profile(targetId) });
+      queryClient.invalidateQueries({ queryKey: ['followers', targetId] });
+      queryClient.invalidateQueries({ queryKey: ['following', targetId] });
       queryClient.invalidateQueries({ queryKey: ['trending-creators'] });
       queryClient.invalidateQueries({ queryKey: queryKeys.followingFeed() });
       queryClient.invalidateQueries({ queryKey: queryKeys.followingCreators() });
@@ -24,8 +54,38 @@ export function useFollowUser(defaultUserId?: string) {
 
   const unfollowMutation = useMutation({
     mutationFn: (targetId: string) => followsApi.unfollow(targetId),
+    onMutate: async (targetId: string) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.profile(targetId) });
+      const previousProfile = queryClient.getQueryData(queryKeys.profile(targetId));
+
+      queryClient.setQueryData(queryKeys.profile(targetId), (old: any) => {
+        if (!old) return old;
+        const currentCount = old.user?._count?.followers || 0;
+        return {
+          ...old,
+          isFollowing: false,
+          user: {
+            ...old.user,
+            isFollowing: false,
+            _count: {
+              ...old.user?._count,
+              followers: Math.max(0, currentCount - 1),
+            },
+          },
+        };
+      });
+
+      return { previousProfile };
+    },
+    onError: (err, targetId, context) => {
+      if (context?.previousProfile) {
+        queryClient.setQueryData(queryKeys.profile(targetId), context.previousProfile);
+      }
+    },
     onSuccess: (_, targetId) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.profile(targetId) });
+      queryClient.invalidateQueries({ queryKey: ['followers', targetId] });
+      queryClient.invalidateQueries({ queryKey: ['following', targetId] });
       queryClient.invalidateQueries({ queryKey: ['trending-creators'] });
       queryClient.invalidateQueries({ queryKey: queryKeys.followingFeed() });
       queryClient.invalidateQueries({ queryKey: queryKeys.followingCreators() });

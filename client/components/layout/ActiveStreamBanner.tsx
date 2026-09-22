@@ -1,37 +1,16 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { Radio, ArrowRight } from 'lucide-react';
-import { Stream } from '@/lib/types';
-import { streamsApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useMyActiveStream } from '@/lib/hooks/use-queries';
 
 export function ActiveStreamBanner() {
   const { user } = useAuth();
-  const [activeStream, setActiveStream] = useState<Stream | null>(null);
+  const { data: activeStream } = useMyActiveStream();
 
-  useEffect(() => {
-    if (!user) {
-      setActiveStream(null);
-      return;
-    }
-
-    streamsApi.getMyActiveStream()
-      .then(setActiveStream)
-      .catch(() => setActiveStream(null));
-
-    // Poll periodically every 15 seconds to check active broadcast status
-    const interval = setInterval(() => {
-      streamsApi.getMyActiveStream()
-        .then(setActiveStream)
-        .catch(() => setActiveStream(null));
-    }, 15000);
-
-    return () => clearInterval(interval);
-  }, [user]);
-
-  if (!activeStream) return null;
+  if (!user || !activeStream) return null;
 
   return (
     <div className="mx-3 my-2 flex items-center justify-between rounded-2xl border border-zylo-purple/30 bg-zylo-soft p-3 text-xs shadow-sm animate-in fade-in">

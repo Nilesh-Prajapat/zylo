@@ -26,6 +26,15 @@ enum StreamStatus {
   SCHEDULED
   LIVE
   ENDED
+  CANCELLED
+}
+
+enum TopupStatus {
+  CREATED
+  PENDING
+  PAID
+  FAILED
+  CREDITED
 }
 
 enum RecordingStatus {
@@ -137,6 +146,7 @@ model User {
   vods                  Vod[]
   moderatedUserActions  StreamModeration[]   @relation("ModeratedUser")
   performedModerations StreamModeration[]   @relation("StreamModerator")
+  walletTopups          WalletTopup[]
 
   @@map("users")
 }
@@ -506,4 +516,26 @@ model Vod {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("vods")
+}
+
+// ─── WalletTopup ──────────────────────────────────────────────
+
+model WalletTopup {
+  id                String      @id @default(cuid())
+  userId            String
+  razorpayOrderId   String      @unique
+  razorpayPaymentId String?     @unique
+  razorpaySignature String?
+  amountInr         Float
+  currency          String      @default("INR")
+  credits           Int
+  status            TopupStatus @default(CREATED)
+  createdAt         DateTime    @default(now())
+  completedAt       DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([razorpayOrderId])
+  @@map("wallet_topups")
 }

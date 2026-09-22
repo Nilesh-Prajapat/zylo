@@ -1,6 +1,6 @@
 export type UserRole = 'NORMAL_USER' | 'CREATOR' | 'ADMIN';
 export type UserStatus = 'ACTIVE' | 'SUSPENDED' | 'BANNED';
-export type StreamStatus = 'SCHEDULED' | 'LIVE' | 'ENDED';
+export type StreamStatus = 'SCHEDULED' | 'LIVE' | 'ENDED' | 'CANCELLED';
 export type ReportStatus = 'PENDING' | 'REVIEWED' | 'RESOLVED' | 'DISMISSED';
 export type ReportTargetType = 'USER' | 'STREAM' | 'CHAT_MESSAGE';
 

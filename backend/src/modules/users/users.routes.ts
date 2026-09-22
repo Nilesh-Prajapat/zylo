@@ -136,14 +136,14 @@ router.get('/:id', optionalAuth, asyncHandler(async (req, res) => {
   const cached = await redis.get(RedisKeys.profileCache(id));
   if (cached) {
     const data = JSON.parse(cached);
-    // Add follow status if authenticated
+    let isFollowing = false;
     if (req.user) {
       const follow = await prisma.follow.findUnique({
         where: { followerId_followingId: { followerId: req.user.id, followingId: data.id } },
       });
-      data.isFollowing = !!follow;
+      isFollowing = !!follow;
     }
-    sendSuccess(res, { user: data });
+    sendSuccess(res, { user: { ...data, isFollowing }, isFollowing });
     return;
   }
 
@@ -174,7 +174,7 @@ router.get('/:id', optionalAuth, asyncHandler(async (req, res) => {
     isFollowing = !!follow;
   }
 
-  sendSuccess(res, { user: { ...user, isFollowing } });
+  sendSuccess(res, { user: { ...user, isFollowing }, isFollowing });
 }));
 
 // PATCH & PUT /api/v1/users/me

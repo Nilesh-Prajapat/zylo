@@ -54,6 +54,7 @@ const ALLOWED_TRANSITIONS: Record<StreamStatus, StreamStatus[]> = {
 router.post(
   '/',
   requireAuth,
+  requireRole(UserRole.CREATOR),
   validate(createStreamSchema),
   asyncHandler(async (req, res) => {
     const {
@@ -62,25 +63,12 @@ router.post(
     } = req.body;
     const broadcasterId = req.user!.id;
 
-    // Auto-promote user to CREATOR if they are NORMAL_USER
-    if (req.user!.role === UserRole.NORMAL_USER) {
-      await prisma.user.update({
-        where: { id: broadcasterId },
-        data: { role: UserRole.CREATOR },
-      });
-      req.user!.role = UserRole.CREATOR;
-    }
-
-    const isScheduled = !!scheduledAt;
-
-    // Check for active stream (only for immediate go-live)
-    if (!isScheduled) {
-      const activeLive = await prisma.stream.findFirst({
-        where: { broadcasterId, status: StreamStatus.LIVE },
-      });
-      if (activeLive) {
-        throw new AppError(409, ErrorCodes.ALREADY_BROADCASTING, 'You already have an active live stream');
-      }
+    // Check for active stream
+    const activeLive = await prisma.stream.findFirst({
+      where: { broadcasterId, status: { in: [StreamStatus.LIVE, StreamStatus.SCHEDULED] } },
+    });
+    if (activeLive && activeLive.status === StreamStatus.LIVE) {
+      throw new AppError(409, ErrorCodes.ALREADY_BROADCASTING, 'You already have an active live stream');
     }
 
     // Validate categoryId if provided
@@ -89,7 +77,7 @@ router.post(
       if (!cat) throw AppError.badRequest('Invalid category');
     }
 
-    // Create stream in a safe initial state
+    // Always create stream in SCHEDULED state — creator must explicitly START LIVE
     const stream = await prisma.stream.create({
       data: {
         broadcasterId,
@@ -102,11 +90,10 @@ router.post(
         enableChat,
         enableGifts,
         saveRecording,
-        status: isScheduled ? StreamStatus.SCHEDULED : StreamStatus.LIVE,
+        status: StreamStatus.SCHEDULED,
         scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
-        startedAt: isScheduled ? undefined : new Date(),
         mediaProvider: 'LIVEKIT',
-        recordingStatus: (!isScheduled && saveRecording) ? RecordingStatus.RECORDING : RecordingStatus.NOT_STARTED,
+        recordingStatus: RecordingStatus.NOT_STARTED,
       },
       include: {
         broadcaster: {
@@ -133,7 +120,7 @@ router.post(
       data: { livekitRoomName },
     });
 
-    // Generate Publisher token for Creator
+    // Generate Publisher token for Creator (for preview in studio)
     const mediaProvider = getMediaProvider();
     const token = await mediaProvider.generateToken({
       roomName: livekitRoomName,
@@ -145,9 +132,6 @@ router.post(
     // Invalidate caches
     const redis = getRedis();
     await redis.del(RedisKeys.upcomingStreams());
-    if (!isScheduled) {
-      await redis.del(RedisKeys.liveStreams());
-    }
 
     sendSuccess(
       res,
@@ -160,6 +144,60 @@ router.post(
     );
   })
 );
+
+// ─── POST /api/v1/streams/:id/start ───────────────────────────
+// Transitions a SCHEDULED stream to LIVE — creator must explicitly click START LIVE
+
+router.post('/:id/start', requireAuth, asyncHandler(async (req, res) => {
+  const stream = await prisma.stream.findFirst({
+    where: { OR: [{ id: req.params.id }, { publicId: req.params.id }] },
+  });
+
+  if (!stream) throw AppError.notFound('Stream not found');
+
+  if (stream.broadcasterId !== req.user!.id) {
+    throw AppError.forbidden('Not authorized to start this stream');
+  }
+
+  if (stream.status !== StreamStatus.SCHEDULED) {
+    if (stream.status === StreamStatus.LIVE) {
+      // Already live — idempotent
+      sendSuccess(res, { stream });
+      return;
+    }
+    throw new AppError(400, ErrorCodes.INVALID_STREAM_TRANSITION,
+      `Cannot start a stream with status ${stream.status}`);
+  }
+
+  const updated = await prisma.stream.update({
+    where: { id: stream.id },
+    data: {
+      status: StreamStatus.LIVE,
+      startedAt: new Date(),
+      recordingStatus: stream.saveRecording ? RecordingStatus.RECORDING : RecordingStatus.NOT_STARTED,
+    },
+    include: {
+      broadcaster: {
+        select: { id: true, username: true, displayName: true, avatarUrl: true },
+      },
+    },
+  });
+
+  // Invalidate caches
+  const redis = getRedis();
+  await redis.del(RedisKeys.liveStreams());
+  await redis.del(RedisKeys.upcomingStreams());
+  await redis.del(RedisKeys.streamCache(stream.id));
+
+  // Broadcast realtime event
+  emitToStream(stream.id, 'stream:status_changed', {
+    streamId: stream.id,
+    status: StreamStatus.LIVE,
+    startedAt: updated.startedAt?.toISOString(),
+  });
+
+  sendSuccess(res, { stream: updated });
+}));
 
 // ─── GET /api/v1/streams/mine/active ──────────────────────────
 

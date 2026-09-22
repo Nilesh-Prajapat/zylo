@@ -89,8 +89,8 @@ export default function LiveControlRoomPage() {
         setEditDesc(data.stream.description || '');
         setViewerCount(data.stream.viewerCount || 0);
 
-        if (data.stream.status !== 'LIVE') {
-          setError('This stream is not currently live.');
+        if (data.stream.status === 'ENDED') {
+          setError('This stream has ended.');
           return;
         }
 
@@ -296,16 +296,37 @@ export default function LiveControlRoomPage() {
     );
   }
 
+  const [startingLive, setStartingLive] = useState(false);
+
+  const handleStartLive = async () => {
+    if (!stream) return;
+    setStartingLive(true);
+    try {
+      const res = await streamsApi.startStream(stream.id);
+      setStream(res.stream);
+    } catch (err: any) {
+      alert(err.message || 'Failed to start live stream');
+    } finally {
+      setStartingLive(false);
+    }
+  };
+
   return (
     <div className="flex flex-col lg:flex-row min-h-[calc(100vh-60px)] bg-zylo-warm text-zylo-text">
       {/* Main Control Viewport */}
       <div className="flex-1 flex flex-col min-w-0 p-4 lg:p-6 gap-5">
         {/* Top Control Bar */}
-        <div className="flex items-center justify-between rounded-3xl border border-zylo-border bg-white p-4 shadow-sm">
+        <div className="flex items-center justify-between rounded-3xl border border-zylo-border bg-white p-4 shadow-xs">
           <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1.5 rounded-xl bg-[#B8FF3D] px-3 py-1.5 text-xs font-black tracking-wide text-[#120E21] shadow">
-              <span className="h-2 w-2 rounded-full bg-[#120E21] animate-pulse" /> LIVE CONTROL ROOM
-            </span>
+            {stream.status === 'LIVE' ? (
+              <span className="flex items-center gap-1.5 rounded-xl bg-red-600 px-3 py-1.5 text-xs font-black tracking-wide text-white shadow-xs">
+                <span className="h-2 w-2 rounded-full bg-white animate-pulse" /> LIVE CONTROL ROOM
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5 rounded-xl bg-amber-500 px-3 py-1.5 text-xs font-black tracking-wide text-white shadow-xs">
+                PREVIEW / SCHEDULED
+              </span>
+            )}
             <span className="flex items-center gap-1.5 rounded-xl bg-zylo-warm px-3 py-1.5 text-xs font-bold text-zylo-secondary border border-zylo-border">
               <Clock className="h-3.5 w-3.5 text-zylo-purple" /> {formatTimer(elapsedSeconds)}
             </span>
@@ -314,12 +335,25 @@ export default function LiveControlRoomPage() {
             </span>
           </div>
 
-          <button
-            onClick={() => setShowEndConfirm(true)}
-            className="flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-xs font-extrabold text-white hover:bg-red-700 transition shadow-sm"
-          >
-            <StopCircle className="h-4 w-4" /> End Broadcast
-          </button>
+          <div className="flex items-center gap-2">
+            {stream.status === 'SCHEDULED' && (
+              <button
+                onClick={handleStartLive}
+                disabled={startingLive}
+                className="flex items-center gap-2 rounded-xl bg-[#B8FF3D] px-5 py-2 text-xs font-black text-black hover:bg-[#a6fa26] transition shadow-xs disabled:opacity-50"
+              >
+                {startingLive ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radio className="h-4 w-4" />}
+                <span>START LIVE</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => setShowEndConfirm(true)}
+              className="flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-xs font-extrabold text-white hover:bg-red-700 transition shadow-xs"
+            >
+              <StopCircle className="h-4 w-4" /> End Broadcast
+            </button>
+          </div>
         </div>
 
         {/* LiveKit Video Publisher Preview */}

@@ -19,7 +19,7 @@ const updateProfileSchema = z.object({
 });
 
 const switchRoleSchema = z.object({
-  targetRole: z.enum(['NORMAL_USER', 'CREATOR']),
+  targetRole: z.enum(['NORMAL_USER', 'CREATOR']),  // ADMIN is never allowed here
 });
 
 // GET /api/v1/users/me
@@ -42,6 +42,11 @@ router.get('/me', requireAuth, asyncHandler(async (req, res) => {
 router.post('/me/role/switch', requireAuth, validate(switchRoleSchema), asyncHandler(async (req, res) => {
   const { targetRole } = req.body;
   const userId = req.user!.id;
+
+  // Never allow switching to ADMIN via API
+  if ((targetRole as string) === 'ADMIN') {
+    throw AppError.forbidden('Cannot switch to ADMIN role');
+  }
 
   const currentUser = await prisma.user.findUnique({ where: { id: userId } });
   if (!currentUser) throw AppError.notFound('User not found');
@@ -79,10 +84,15 @@ router.post('/me/role/switch', requireAuth, validate(switchRoleSchema), asyncHan
 }));
 
 // GET /api/v1/users/trending
-router.get('/trending', asyncHandler(async (req, res) => {
+router.get('/trending', optionalAuth, asyncHandler(async (req, res) => {
   const creators = await prisma.user.findMany({
-    where: { status: 'ACTIVE' },
-    take: 10,
+    where: {
+      status: 'ACTIVE',
+      role: 'CREATOR',
+      // Exclude the currently logged-in user from Explore
+      ...(req.user && { id: { not: req.user.id } }),
+    },
+    take: 20,
     select: {
       id: true,
       username: true,
@@ -100,7 +110,21 @@ router.get('/trending', asyncHandler(async (req, res) => {
     ],
   });
 
-  sendSuccess(res, { creators });
+  // Add follow status for each creator if authenticated
+  let enrichedCreators = creators;
+  if (req.user) {
+    const followRecords = await prisma.follow.findMany({
+      where: {
+        followerId: req.user.id,
+        followingId: { in: creators.map(c => c.id) },
+      },
+      select: { followingId: true },
+    });
+    const followingSet = new Set(followRecords.map(f => f.followingId));
+    enrichedCreators = creators.map(c => ({ ...c, isFollowing: followingSet.has(c.id) })) as any;
+  }
+
+  sendSuccess(res, { creators: enrichedCreators });
 }));
 
 // GET /api/v1/users/:id
@@ -257,7 +281,7 @@ router.delete('/:id/follow', requireAuth, asyncHandler(async (req, res) => {
 }));
 
 // GET /api/v1/users/:id/followers
-router.get('/:id/followers', asyncHandler(async (req, res) => {
+router.get('/:id/followers', optionalAuth, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
   const cursor = req.query.cursor as string | undefined;
@@ -277,8 +301,22 @@ router.get('/:id/followers', asyncHandler(async (req, res) => {
   const hasMore = followers.length > limit;
   const items = hasMore ? followers.slice(0, limit) : followers;
 
+  // Enrich with follow status if authenticated
+  let users = items.map(f => f.follower);
+  if (req.user) {
+    const followRecords = await prisma.follow.findMany({
+      where: {
+        followerId: req.user.id,
+        followingId: { in: users.map(u => u.id) },
+      },
+      select: { followingId: true },
+    });
+    const followingSet = new Set(followRecords.map(f => f.followingId));
+    users = users.map(u => ({ ...u, isFollowing: followingSet.has(u.id) })) as any;
+  }
+
   sendSuccess(res, {
-    users: items.map(f => f.follower),
+    users,
     pagination: {
       hasMore,
       cursor: hasMore ? items[items.length - 1].id : undefined,
@@ -287,7 +325,7 @@ router.get('/:id/followers', asyncHandler(async (req, res) => {
 }));
 
 // GET /api/v1/users/:id/following
-router.get('/:id/following', asyncHandler(async (req, res) => {
+router.get('/:id/following', optionalAuth, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
   const cursor = req.query.cursor as string | undefined;
@@ -307,8 +345,22 @@ router.get('/:id/following', asyncHandler(async (req, res) => {
   const hasMore = following.length > limit;
   const items = hasMore ? following.slice(0, limit) : following;
 
+  // Enrich with follow status if authenticated
+  let users = items.map(f => f.following);
+  if (req.user) {
+    const followRecords = await prisma.follow.findMany({
+      where: {
+        followerId: req.user.id,
+        followingId: { in: users.map(u => u.id) },
+      },
+      select: { followingId: true },
+    });
+    const followingSet = new Set(followRecords.map(f => f.followingId));
+    users = users.map(u => ({ ...u, isFollowing: followingSet.has(u.id) })) as any;
+  }
+
   sendSuccess(res, {
-    users: items.map(f => f.following),
+    users,
     pagination: {
       hasMore,
       cursor: hasMore ? items[items.length - 1].id : undefined,

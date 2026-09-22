@@ -71,9 +71,19 @@ export const usersApi = {
     return res.data.data;
   },
 
-  async getTrendingCreators(): Promise<UserProfile[]> {
+  async getTrendingCreators(): Promise<(UserProfile & { isFollowing?: boolean })[]> {
     const res = await apiClient.get('/users/trending');
     return res.data.data.creators || [];
+  },
+
+  async getFollowers(userId: string, cursor?: string): Promise<{ users: (UserProfile & { isFollowing?: boolean })[]; pagination: { hasMore: boolean; cursor?: string } }> {
+    const res = await apiClient.get(`/users/${userId}/followers`, { params: { cursor } });
+    return res.data.data;
+  },
+
+  async getFollowing(userId: string, cursor?: string): Promise<{ users: (UserProfile & { isFollowing?: boolean })[]; pagination: { hasMore: boolean; cursor?: string } }> {
+    const res = await apiClient.get(`/users/${userId}/following`, { params: { cursor } });
+    return res.data.data;
   },
 };
 
@@ -142,6 +152,11 @@ export const streamsApi = {
 
   async endStream(streamId: string) {
     const res = await apiClient.post(`/streams/${streamId}/end`);
+    return res.data.data;
+  },
+
+  async startStream(streamId: string) {
+    const res = await apiClient.post(`/streams/${streamId}/start`);
     return res.data.data;
   },
 

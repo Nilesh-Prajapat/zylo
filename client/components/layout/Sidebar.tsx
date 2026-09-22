@@ -88,7 +88,7 @@ export function Sidebar() {
       <div className="mt-auto pt-6 border-t border-zylo-border/60">
         {user ? (
           <Link
-            href="/settings"
+            href={`/profile/${user.id}`}
             className="flex items-center gap-3 rounded-xl p-2 transition-colors hover:bg-zylo-warm"
           >
             <div className="relative shrink-0">
@@ -101,7 +101,6 @@ export function Sidebar() {
               </p>
               <p className="truncate text-[10px] text-zylo-muted">@{user.username}</p>
             </div>
-            <Settings className="h-4 w-4 text-zylo-muted shrink-0 hover:text-zylo-purple" />
           </Link>
         ) : (
           <Link

@@ -233,6 +233,26 @@ export default function StreamViewerPage() {
               muted={isMuted}
               className="h-full w-full object-cover"
             />
+          ) : stream.status === 'SCHEDULED' ? (
+            <div className="relative flex h-full w-full flex-col items-center justify-center bg-[#120e21] text-white p-6 text-center">
+              {stream.thumbnailUrl && (
+                <img src={stream.thumbnailUrl} alt={stream.title} className="absolute inset-0 h-full w-full object-cover opacity-30 blur-xs" />
+              )}
+              <div className="relative z-10 flex flex-col items-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40 mb-3 animate-pulse">
+                  <Radio className="h-8 w-8" />
+                </div>
+                <span className="rounded-full bg-amber-500/20 px-3 py-1 text-xs font-black text-amber-400 border border-amber-500/40 mb-2">
+                  SCHEDULED BROADCAST
+                </span>
+                <h2 className="text-xl font-extrabold text-white max-w-md">{stream.title}</h2>
+                <p className="mt-2 text-xs text-zylo-muted max-w-sm">
+                  {stream.scheduledAt
+                    ? `Scheduled to start at ${new Date(stream.scheduledAt).toLocaleString()}`
+                    : 'The creator is preparing for this live stream. It will start shortly.'}
+                </p>
+              </div>
+            </div>
           ) : stream.replayUrl ? (
             <video
               ref={replayVideoRef}
@@ -337,28 +357,36 @@ export default function StreamViewerPage() {
 
       {/* Right Column: Live Chat or Replay Chat Rail */}
       <div className="w-full lg:w-[350px] shrink-0 border-t lg:border-t-0 lg:border-l border-zylo-border bg-white flex flex-col h-[520px] lg:h-auto">
-        {isLive ? (
+        {isLive || stream.status === 'SCHEDULED' ? (
           <>
             <div className="p-4 border-b border-zylo-border flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-zylo-lime animate-pulse" />
-                <h3 className="text-sm font-extrabold text-zylo-text">Live Chat</h3>
+                <span className={`h-2.5 w-2.5 rounded-full ${isLive ? 'bg-zylo-lime animate-pulse' : 'bg-amber-400'}`} />
+                <h3 className="text-sm font-extrabold text-zylo-text">
+                  {isLive ? 'Live Chat' : 'Stream Chat'}
+                </h3>
               </div>
               <span className="text-xs font-semibold text-zylo-muted">
-                {formatViewers(viewerCount)} watching
+                {isLive ? `${formatViewers(viewerCount)} watching` : 'Waiting for broadcast'}
               </span>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-hide bg-zylo-warm/40">
-              {messages.map((msg, idx) => (
-                <div key={msg.id || idx} className="flex items-start gap-2.5 text-xs">
-                  <Avatar src={msg.user?.avatarUrl} size="h-7 w-7" />
-                  <div className="min-w-0 flex-1">
-                    <span className="font-extrabold text-zylo-text">{msg.user?.displayName || msg.user?.username || 'User'}</span>
-                    <p className="mt-0.5 leading-relaxed text-zylo-secondary">{msg.message}</p>
-                  </div>
+              {messages.length === 0 ? (
+                <div className="flex h-full items-center justify-center text-center text-xs font-semibold text-zylo-muted">
+                  {stream.status === 'SCHEDULED' ? 'Chat will open once creator starts live stream.' : 'No messages yet.'}
                 </div>
-              ))}
+              ) : (
+                messages.map((msg, idx) => (
+                  <div key={msg.id || idx} className="flex items-start gap-2.5 text-xs">
+                    <Avatar src={msg.user?.avatarUrl} size="h-7 w-7" />
+                    <div className="min-w-0 flex-1">
+                      <span className="font-extrabold text-zylo-text">{msg.user?.displayName || msg.user?.username || 'User'}</span>
+                      <p className="mt-0.5 leading-relaxed text-zylo-secondary">{msg.message}</p>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
 
             <div className="p-3 border-t border-zylo-border bg-white">
@@ -367,12 +395,14 @@ export default function StreamViewerPage() {
                   value={chatText}
                   onChange={(e) => setChatText(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                  placeholder="Send a message..."
-                  className="min-w-0 flex-1 bg-transparent text-xs text-zylo-text outline-none placeholder:text-zylo-muted"
+                  disabled={!isLive}
+                  placeholder={isLive ? 'Send a message...' : 'Chat disabled until stream goes live'}
+                  className="min-w-0 flex-1 bg-transparent text-xs text-zylo-text outline-none placeholder:text-zylo-muted disabled:cursor-not-allowed disabled:opacity-60"
                 />
                 <button
                   onClick={handleSendMessage}
-                  className="rounded-xl bg-zylo-purple p-2.5 text-white transition hover:bg-zylo-purple-hover"
+                  disabled={!isLive}
+                  className="rounded-xl bg-zylo-purple p-2.5 text-white transition hover:bg-zylo-purple-hover disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Send className="h-3.5 w-3.5" />
                 </button>

@@ -1,0 +1,509 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────
+
+enum UserRole {
+  NORMAL_USER
+  CREATOR
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
+
+enum StreamStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+}
+
+enum RecordingStatus {
+  NOT_STARTED
+  RECORDING
+  PROCESSING
+  READY
+  FAILED
+  DELETED
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  RESOLVED
+  DISMISSED
+}
+
+enum ReportTargetType {
+  USER
+  STREAM
+  CHAT_MESSAGE
+}
+
+enum MediaAssetType {
+  AVATAR
+  COVER_IMAGE
+  STREAM_THUMBNAIL
+  GIFT_ICON
+  OTHER
+}
+
+enum MediaAssetStatus {
+  PENDING
+  ACTIVE
+  DELETED
+}
+
+enum WalletTransactionType {
+  TOP_UP
+  GIFT_SENT
+  GIFT_RECEIVED
+  REDEMPTION
+  REFUND
+  ADJUSTMENT
+}
+
+enum WalletBalanceType {
+  PERSONAL_COINS
+  CREATOR_EARNINGS
+}
+
+enum TransactionDirection {
+  CREDIT
+  DEBIT
+}
+
+enum ModerationType {
+  MUTE
+  TEMPORARY_BAN
+  PERMANENT_BAN
+}
+
+enum NotificationType {
+  GIFT_RECEIVED
+  GIFT_SENT
+  FOLLOW
+  STREAM_LIVE
+  STREAM_ENDED
+  REPLAY_READY
+  TOP_UP_SUCCESS
+  TOP_UP_FAILED
+  REDEMPTION_SUCCESS
+  REDEMPTION_FAILED
+  MODERATION_ACTION
+  ADMIN_STREAM_TERMINATED
+  SYSTEM
+}
+
+// ─── User ─────────────────────────────────────────────────────
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  username     String     @unique
+  displayName  String
+  passwordHash String
+  role         UserRole   @default(NORMAL_USER)
+  status       UserStatus @default(ACTIVE)
+  avatarUrl    String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  profile               Profile?
+  refreshTokens         RefreshToken[]
+  streams               Stream[]             @relation("BroadcasterStreams")
+  chatMessages          ChatMessage[]
+  wallet                Wallet?
+  walletTransactions    WalletTransaction[]
+  couponRedemptions     CouponRedemption[]
+  notifications         Notification[]
+  sentGifts             GiftTransaction[]    @relation("GiftSender")
+  receivedGifts         GiftTransaction[]    @relation("GiftRecipient")
+  followers             Follow[]             @relation("Following")
+  following             Follow[]             @relation("Follower")
+  reports               Report[]             @relation("Reporter")
+  resolvedReports       Report[]             @relation("ReportResolver")
+  mediaAssets           MediaAsset[]
+  vods                  Vod[]
+  moderatedUserActions  StreamModeration[]   @relation("ModeratedUser")
+  performedModerations StreamModeration[]   @relation("StreamModerator")
+
+  @@map("users")
+}
+
+// ─── Profile ──────────────────────────────────────────────────
+
+model Profile {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  bio           String?  @db.VarChar(500)
+  coverImageUrl String?
+  location      String?
+  website       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+// ─── Category ─────────────────────────────────────────────────
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?  @db.VarChar(500)
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  streams Stream[]
+
+  @@map("categories")
+}
+
+// ─── RefreshToken ─────────────────────────────────────────────
+
+model RefreshToken {
+  id                String    @id @default(cuid())
+  userId            String
+  tokenHash         String
+  family            String
+  expiresAt         DateTime
+  revokedAt         DateTime?
+  replacedByTokenId String?
+  createdAt         DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([family])
+  @@map("refresh_tokens")
+}
+
+// ─── Follow ───────────────────────────────────────────────────
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+  @@map("follows")
+}
+
+// ─── Stream ───────────────────────────────────────────────────
+
+model Stream {
+  id                   String            @id @default(cuid())
+  publicId             String            @unique @default(cuid())
+  broadcasterId        String
+  streamKey            String            @unique @default(cuid())
+  livekitRoomName      String?           @unique
+  categoryId           String?
+  title                String            @db.VarChar(200)
+  description          String?           @db.VarChar(2000)
+  thumbnailUrl         String?
+  status               StreamStatus      @default(SCHEDULED)
+  scheduledAt          DateTime?
+  startedAt            DateTime?
+  endedAt              DateTime?
+  viewerCount          Int               @default(0)
+  peakViewerCount      Int               @default(0)
+  replayViews          Int               @default(0)
+  duration             Float?
+  mediaProvider        String?
+  mediaPath            String?
+  enableChat           Boolean           @default(true)
+  enableGifts          Boolean           @default(true)
+  saveRecording        Boolean           @default(true)
+  recordingStatus      RecordingStatus   @default(NOT_STARTED)
+  recordingStorageKey  String?
+  recordingFinalizedAt DateTime?
+  publicationStatus    String            @default("PUBLISHED")
+  visibility           String            @default("PUBLIC")
+  vibe                 String?           @default("Just Chatting")
+  language             String?           @default("English")
+  allowReplay          Boolean           @default(true)
+  replayUrl            String?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  broadcaster      User              @relation("BroadcasterStreams", fields: [broadcasterId], references: [id], onDelete: Cascade)
+  category         Category?         @relation(fields: [categoryId], references: [id])
+  chatMessages     ChatMessage[]
+  giftTransactions GiftTransaction[]
+  recording        StreamRecording?
+  vod              Vod?
+  moderations      StreamModeration[]
+
+  @@index([status, scheduledAt])
+  @@index([status, startedAt])
+  @@index([broadcasterId, status])
+  @@index([createdAt])
+  @@map("streams")
+}
+
+// ─── ChatMessage ──────────────────────────────────────────────
+
+model ChatMessage {
+  id                  String   @id @default(cuid())
+  streamId            String
+  userId              String
+  message             String   @db.VarChar(500)
+  streamOffsetSeconds Float?   @default(0)
+  createdAt           DateTime @default(now())
+
+  stream Stream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([streamId, createdAt])
+  @@index([streamId, streamOffsetSeconds])
+  @@map("chat_messages")
+}
+
+// ─── StreamModeration ─────────────────────────────────────────
+
+model StreamModeration {
+  id          String         @id @default(cuid())
+  streamId    String
+  userId      String
+  moderatorId String
+  type        ModerationType
+  reason      String?
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime       @default(now())
+
+  stream    Stream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  user      User   @relation("ModeratedUser", fields: [userId], references: [id], onDelete: Cascade)
+  moderator User   @relation("StreamModerator", fields: [moderatorId], references: [id], onDelete: Cascade)
+
+  @@index([streamId, userId, revokedAt])
+  @@index([expiresAt])
+  @@map("stream_moderations")
+}
+
+// ─── Wallet ───────────────────────────────────────────────────
+
+model Wallet {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  purchasedCoins  Int      @default(0)
+  creatorEarnings Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("wallets")
+}
+
+// ─── WalletTransaction ────────────────────────────────────────
+
+model WalletTransaction {
+  id          String                @id @default(cuid())
+  userId      String
+  type        WalletTransactionType
+  balanceType WalletBalanceType     @default(PERSONAL_COINS)
+  direction   TransactionDirection
+  amount      Int
+  currency    String?               @default("USD")
+  amountUsd   Float?
+  referenceId String?
+  description String?
+  status      String                @default("COMPLETED")
+  createdAt   DateTime              @default(now())
+  metadata    Json?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([type])
+  @@map("wallet_transactions")
+}
+
+// ─── CouponRedemption ─────────────────────────────────────────
+
+model CouponRedemption {
+  id               String   @id @default(cuid())
+  userId           String
+  couponCode       String   @unique
+  couponTitle      String
+  earningsDeducted Int
+  usdValue         Float
+  status           String   @default("COMPLETED")
+  createdAt        DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("coupon_redemptions")
+}
+
+// ─── Notification ─────────────────────────────────────────────
+
+model Notification {
+  id         String           @id @default(cuid())
+  userId     String
+  type       NotificationType
+  title      String
+  message    String
+  read       Boolean          @default(false)
+  entityType String?
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+// ─── Gift ─────────────────────────────────────────────────────
+
+model Gift {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  emoji     String
+  price     Int
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions GiftTransaction[]
+
+  @@map("gifts")
+}
+
+// ─── GiftTransaction ──────────────────────────────────────────
+
+model GiftTransaction {
+  id             String   @id @default(cuid())
+  senderId       String
+  recipientId    String
+  giftId         String
+  streamId       String
+  quantity       Int      @default(1)
+  totalPrice     Int
+  idempotencyKey String
+  createdAt      DateTime @default(now())
+
+  sender    User   @relation("GiftSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient User   @relation("GiftRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  gift      Gift   @relation(fields: [giftId], references: [id], onDelete: Restrict)
+  stream    Stream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, idempotencyKey])
+  @@index([streamId])
+  @@index([recipientId])
+  @@map("gift_transactions")
+}
+
+// ─── Report ───────────────────────────────────────────────────
+
+model Report {
+  id           String           @id @default(cuid())
+  reporterId   String
+  targetType   ReportTargetType
+  targetId     String
+  reason       String           @db.VarChar(1000)
+  status       ReportStatus     @default(PENDING)
+  adminNotes   String?          @db.VarChar(2000)
+  resolvedById String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  reporter   User  @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  resolvedBy User? @relation("ReportResolver", fields: [resolvedById], references: [id])
+
+  @@index([status])
+  @@index([targetType, targetId])
+  @@map("reports")
+}
+
+// ─── MediaAsset ───────────────────────────────────────────────
+
+model MediaAsset {
+  id               String           @id @default(cuid())
+  ownerId          String
+  provider         String           @default("cloudinary")
+  providerPublicId String?
+  resourceType     String?
+  assetType        MediaAssetType
+  originalUrl      String?
+  deliveryUrl      String?
+  width            Int?
+  height           Int?
+  format           String?
+  bytes            Int?
+  status           MediaAssetStatus @default(PENDING)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
+  @@map("media_assets")
+}
+
+// ─── StreamRecording ──────────────────────────────────────────
+
+model StreamRecording {
+  id                String          @id @default(cuid())
+  streamId          String          @unique
+  storageProvider   String          @default("r2")
+  storageKey        String?
+  status            RecordingStatus @default(NOT_STARTED)
+  durationSeconds   Float?
+  sizeBytes         BigInt?
+  posterKey         String?
+  masterPlaylistKey String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  stream Stream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+
+  @@map("stream_recordings")
+}
+
+// ─── Vod ──────────────────────────────────────────────────────
+
+model Vod {
+  id              String   @id @default(cuid())
+  streamId        String   @unique
+  userId          String
+  title           String
+  description     String?  @db.VarChar(2000)
+  thumbnailUrl    String?
+  videoUrl        String
+  durationSeconds Float?
+  visibility      String   @default("PUBLIC")
+  createdAt       DateTime @default(now())
+
+  stream Stream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("vods")
+}

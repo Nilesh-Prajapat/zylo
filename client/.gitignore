@@ -1,0 +1,36 @@
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# Build & Output
+/.next/
+/out/
+/build
+*.tsbuildinfo
+next-env.d.ts
+
+# Testing & Coverage
+/coverage
+
+# Environment variables
+.env
+.env*.local
+.env.*
+*.env
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Vercel & Deployments
+.vercel
+
+# OS & Security
+.DS_Store
+Thumbs.db
+*.pem
+.vscode/
+.idea/

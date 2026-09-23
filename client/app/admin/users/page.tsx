@@ -1,54 +1,30 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+import React, { useState } from 'react';
 import { adminApi } from '@/lib/api';
 import { AdminUser } from '@/lib/types';
+import { useAdminUsers } from '@/lib/hooks/use-queries';
+import { useQueryClient } from '@tanstack/react-query';
+import { AdminTableRowSkeleton } from '@/components/shared/Skeletons';
 
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { data: users = [], isLoading: loading, error: queryError } = useAdminUsers();
+  const queryClient = useQueryClient();
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function loadUsers() {
-      try {
-        setLoading(true);
-        setError('');
-        const data = await adminApi.getUsers();
-        setUsers(data);
-      } catch (err: any) {
-        setError(err.response?.data?.error?.message || 'Failed to fetch users');
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadUsers();
-  }, []);
+  const error = queryError ? 'Failed to fetch users' : '';
 
   const toggleStatus = async (user: AdminUser) => {
     const newStatus = user.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
     try {
       setUpdatingId(user.id);
       await adminApi.updateUserStatus(user.id, newStatus);
-      setUsers((prev) =>
-        prev.map((u) => (u.id === user.id ? { ...u, status: newStatus } : u))
-      );
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
     } catch (err: any) {
       alert(err.response?.data?.error?.message || 'Failed to update user status');
     } finally {
       setUpdatingId(null);
     }
   };
-
-  if (loading) {
-    return (
-      <div className="flex h-[60vh] w-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-zylo-purple" />
-      </div>
-    );
-  }
 
   return (
     <div>
@@ -64,20 +40,28 @@ export default function AdminUsersPage() {
       )}
 
       <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden">
-        {users.length === 0 ? (
-          <div className="p-8 text-center text-xs text-slate-400">No users found.</div>
-        ) : (
-          <table className="w-full text-left text-xs text-slate-300">
-            <thead className="border-b border-slate-800 bg-slate-900/50 text-[11px] font-bold text-slate-400 uppercase">
+        <table className="w-full text-left text-xs text-slate-300">
+          <thead className="border-b border-slate-800 bg-slate-900/50 text-[11px] font-bold text-slate-400 uppercase">
+            <tr>
+              <th className="p-4">User</th>
+              <th className="p-4">Role</th>
+              <th className="p-4">Status</th>
+              <th className="p-4 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800">
+            {loading ? (
+              <>
+                <tr><td colSpan={4}><AdminTableRowSkeleton /></td></tr>
+                <tr><td colSpan={4}><AdminTableRowSkeleton /></td></tr>
+                <tr><td colSpan={4}><AdminTableRowSkeleton /></td></tr>
+              </>
+            ) : users.length === 0 ? (
               <tr>
-                <th className="p-4">User</th>
-                <th className="p-4">Role</th>
-                <th className="p-4">Status</th>
-                <th className="p-4 text-right">Actions</th>
+                <td colSpan={4} className="p-8 text-center text-xs text-slate-400">No users found.</td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800">
-              {users.map((u) => (
+            ) : (
+              users.map((u) => (
                 <tr key={u.id} className="hover:bg-slate-900/40 transition">
                   <td className="p-4">
                     <p className="font-extrabold text-white">{u.displayName || u.username}</p>
@@ -105,10 +89,10 @@ export default function AdminUsersPage() {
                     </button>
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );

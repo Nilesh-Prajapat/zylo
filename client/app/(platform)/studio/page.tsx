@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { Stream } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
+import { Skeleton, TableRowSkeleton } from '@/components/shared/Skeletons';
 import {
   useMyActiveStream,
   useCreatorStreams,
@@ -210,24 +211,7 @@ export default function StudioDashboardPage() {
     }
   };
 
-  const loading = activeLoading || streamsLoading || statsLoading;
-
-  if (loading) {
-    return (
-      <div className="flex flex-col h-full flex-1 min-h-0 bg-zylo-warm overflow-hidden select-none">
-        <div className="flex-1 flex flex-col p-4 lg:p-5 space-y-3.5 overflow-hidden min-h-0 animate-pulse">
-          <div className="h-28 lg:h-32 w-full rounded-3xl bg-[#ECE8F5] shrink-0" />
-          <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 overflow-hidden">
-            <div className="lg:col-span-4 flex flex-col gap-3 shrink-0">
-              <div className="h-44 rounded-3xl bg-[#ECE8F5]" />
-              <div className="h-24 rounded-3xl bg-[#ECE8F5]" />
-            </div>
-            <div className="lg:col-span-8 rounded-3xl bg-[#ECE8F5] h-full" />
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Render page shell immediately — no early full-page skeleton return!
 
   return (
     <div className="flex flex-col h-full flex-1 min-h-0 bg-zylo-warm overflow-hidden select-none">
@@ -282,19 +266,19 @@ export default function StudioDashboardPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between border-b border-zylo-border pb-2">
                   <span className="text-xs font-bold text-zylo-secondary">Total Streams</span>
-                  <span className="text-lg font-black text-zylo-text">{stats?.totalStreams ?? 0}</span>
+                  {statsLoading ? <Skeleton className="h-5 w-12 rounded" /> : <span className="text-lg font-black text-zylo-text">{stats?.totalStreams ?? 0}</span>}
                 </div>
                 <div className="flex items-center justify-between border-b border-zylo-border pb-2">
                   <span className="text-xs font-bold text-zylo-secondary">Total Views</span>
-                  <span className="text-lg font-black text-zylo-text">{stats?.totalViews ?? 0}</span>
+                  {statsLoading ? <Skeleton className="h-5 w-12 rounded" /> : <span className="text-lg font-black text-zylo-text">{stats?.totalViews ?? 0}</span>}
                 </div>
                 <div className="flex items-center justify-between border-b border-zylo-border pb-2">
                   <span className="text-xs font-bold text-zylo-secondary">Followers</span>
-                  <span className="text-lg font-black text-zylo-text">{stats?.followers ?? 0}</span>
+                  {statsLoading ? <Skeleton className="h-5 w-12 rounded" /> : <span className="text-lg font-black text-zylo-text">{stats?.followers ?? 0}</span>}
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-zylo-secondary">Total Gifts</span>
-                  <span className="text-lg font-black text-zylo-text">✦ {stats?.totalGifts ?? 0}</span>
+                  {statsLoading ? <Skeleton className="h-5 w-12 rounded" /> : <span className="text-lg font-black text-zylo-text">✦ {stats?.totalGifts ?? 0}</span>}
                 </div>
               </div>
             </div>
@@ -302,7 +286,7 @@ export default function StudioDashboardPage() {
             <div className="rounded-3xl border border-zylo-border bg-white p-4 shadow-xs shrink-0">
               <div className="flex items-center gap-2 mb-2">
                 <span className={`h-2.5 w-2.5 rounded-full ${activeStream ? 'bg-[#B8FF3D] border border-green-600' : 'bg-gray-300 border border-gray-400'}`} />
-                <span className="text-xs font-extrabold text-zylo-text">{activeStream ? 'Live Now' : 'Offline'}</span>
+                <span className="text-xs font-extrabold text-zylo-text">{activeLoading ? 'Checking...' : activeStream ? 'Live Now' : 'Offline'}</span>
               </div>
               <button
                 onClick={handleOpenStartStreaming}
@@ -323,7 +307,13 @@ export default function StudioDashboardPage() {
             </div>
 
             <div className="flex-1 overflow-y-auto divide-y divide-zylo-border min-h-0">
-              {myStreams.length > 0 ? (
+              {streamsLoading ? (
+                <div className="p-4 space-y-3">
+                  <TableRowSkeleton />
+                  <TableRowSkeleton />
+                  <TableRowSkeleton />
+                </div>
+              ) : myStreams.length > 0 ? (
                 myStreams.map((stream) => (
                   <div key={stream.id} className="flex items-center justify-between p-3.5 hover:bg-zylo-warm/40 transition">
                     <div className="flex items-center gap-3 min-w-0 flex-1">

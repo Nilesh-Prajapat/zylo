@@ -1,51 +1,28 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+import React, { useState } from 'react';
 import { adminApi } from '@/lib/api';
-import { AdminStream } from '@/lib/types';
+import { useAdminStreams } from '@/lib/hooks/use-queries';
+import { useQueryClient } from '@tanstack/react-query';
+import { AdminTableRowSkeleton } from '@/components/shared/Skeletons';
 
 export default function AdminStreamsPage() {
-  const [streamsList, setStreamsList] = useState<AdminStream[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { data: streamsList = [], isLoading: loading, error: queryError } = useAdminStreams();
+  const queryClient = useQueryClient();
   const [endingId, setEndingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function loadStreams() {
-      try {
-        setLoading(true);
-        setError('');
-        const data = await adminApi.getStreams();
-        setStreamsList(data);
-      } catch (err: any) {
-        setError(err.response?.data?.error?.message || 'Failed to fetch streams');
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadStreams();
-  }, []);
+  const error = queryError ? 'Failed to fetch streams' : '';
 
   const handleEndStream = async (id: string) => {
     try {
       setEndingId(id);
       await adminApi.endStream(id);
-      setStreamsList((prev) => prev.filter((s) => s.id !== id));
+      queryClient.invalidateQueries({ queryKey: ['admin-streams'] });
     } catch (err: any) {
       alert(err.response?.data?.error?.message || 'Failed to terminate stream');
     } finally {
       setEndingId(null);
     }
   };
-
-  if (loading) {
-    return (
-      <div className="flex h-[60vh] w-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-zylo-purple" />
-      </div>
-    );
-  }
 
   return (
     <div>
@@ -61,20 +38,28 @@ export default function AdminStreamsPage() {
       )}
 
       <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden">
-        {streamsList.length === 0 ? (
-          <div className="p-8 text-center text-xs text-slate-400">No active streams found.</div>
-        ) : (
-          <table className="w-full text-left text-xs text-slate-300">
-            <thead className="border-b border-slate-800 bg-slate-900/50 text-[11px] font-bold text-slate-400 uppercase">
+        <table className="w-full text-left text-xs text-slate-300">
+          <thead className="border-b border-slate-800 bg-slate-900/50 text-[11px] font-bold text-slate-400 uppercase">
+            <tr>
+              <th className="p-4">Broadcaster</th>
+              <th className="p-4">Title</th>
+              <th className="p-4">Status</th>
+              <th className="p-4 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800">
+            {loading ? (
+              <>
+                <tr><td colSpan={4}><AdminTableRowSkeleton /></td></tr>
+                <tr><td colSpan={4}><AdminTableRowSkeleton /></td></tr>
+                <tr><td colSpan={4}><AdminTableRowSkeleton /></td></tr>
+              </>
+            ) : streamsList.length === 0 ? (
               <tr>
-                <th className="p-4">Broadcaster</th>
-                <th className="p-4">Title</th>
-                <th className="p-4">Status</th>
-                <th className="p-4 text-right">Actions</th>
+                <td colSpan={4} className="p-8 text-center text-xs text-slate-400">No active streams found.</td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800">
-              {streamsList.map((s) => (
+            ) : (
+              streamsList.map((s) => (
                 <tr key={s.id} className="hover:bg-slate-900/40 transition">
                   <td className="p-4 font-extrabold text-white">
                     {s.broadcaster?.displayName || s.broadcaster?.username || 'Unknown'}
@@ -93,10 +78,10 @@ export default function AdminStreamsPage() {
                     )}
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );

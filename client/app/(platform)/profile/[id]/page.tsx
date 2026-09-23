@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Avatar } from '@/components/shared/Avatar';
+import { AvatarSkeleton, TextSkeleton, Skeleton, StreamCardSkeleton } from '@/components/shared/Skeletons';
 import { UserProfile, Stream } from '@/lib/types';
 import { usersApi, mediaApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -178,51 +179,7 @@ export default function ProfilePage() {
     }
   };
 
-  if (!profile) {
-    if (loadingProfile) {
-      return (
-        <div className="mx-auto w-full max-w-[1280px] px-5 py-6 sm:px-8 lg:py-8 select-none">
-          <div className="rounded-3xl border border-zylo-border bg-white shadow-xs overflow-hidden animate-pulse">
-            {/* Cover Banner Skeleton */}
-            <div className="h-[200px] sm:h-[260px] w-full bg-[#ECE8F5]" />
-            {/* Profile Info Skeleton */}
-            <div className="px-6 sm:px-8 pb-6 border-b border-zylo-border bg-white">
-              <div className="flex items-end gap-5">
-                <div className="-mt-14 sm:-mt-16 shrink-0">
-                  <div className="h-24 w-24 sm:h-28 sm:w-28 rounded-full bg-[#ECE8F5] ring-4 ring-white" />
-                </div>
-                <div className="pt-2 space-y-2 flex-1">
-                  <div className="h-7 w-48 rounded-lg bg-[#ECE8F5]" />
-                  <div className="h-3.5 w-28 rounded bg-[#ECE8F5]" />
-                  <div className="flex items-center gap-4 pt-1">
-                    <div className="h-3 w-20 rounded bg-[#ECE8F5]" />
-                    <div className="h-3 w-20 rounded bg-[#ECE8F5]" />
-                  </div>
-                </div>
-              </div>
-            </div>
-            {/* Tab Bar Skeleton */}
-            <div className="px-6 sm:px-8 border-b border-zylo-border bg-zylo-warm/20">
-              <div className="flex gap-6 py-3.5">
-                <div className="h-3.5 w-16 rounded bg-[#ECE8F5]" />
-                <div className="h-3.5 w-12 rounded bg-[#ECE8F5]" />
-              </div>
-            </div>
-            {/* Content Skeleton */}
-            <div className="p-6 sm:p-8">
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i}>
-                    <div className="aspect-video w-full rounded-lg bg-[#ECE8F5]" />
-                    <div className="mt-2 h-3 w-3/4 rounded bg-[#ECE8F5]" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
+  if (!profile && !loadingProfile) {
     return (
       <div className="mx-auto my-12 max-w-md rounded-2xl border border-red-200 bg-red-50 p-8 text-center">
         <AlertCircle className="mx-auto h-8 w-8 text-red-500" />
@@ -231,12 +188,13 @@ export default function ProfilePage() {
     );
   }
 
-  const name = profile.displayName || profile.username;
-  const avatar = profile.avatarUrl;
-  const coverImage = profile.profile?.coverImageUrl || 'https://images.unsplash.com/photo-1557683316-973673baf926?w=1200&auto=format&fit=crop';
-  const bio = profile.profile?.bio || 'Passionate creator live on Zylo.';
-  const followerCount = profile._count?.followers || 0;
-  const followingCount = profile._count?.following || 0;
+
+  const name = profile?.displayName || profile?.username || '';
+  const avatar = profile?.avatarUrl;
+  const coverImage = profile?.profile?.coverImageUrl || 'https://images.unsplash.com/photo-1557683316-973673baf926?w=1200&auto=format&fit=crop';
+  const bio = profile?.profile?.bio || 'Passionate creator live on Zylo.';
+  const followerCount = profile?._count?.followers || 0;
+  const followingCount = profile?._count?.following || 0;
 
   return (
     <div className="mx-auto w-full max-w-[1280px] px-5 py-6 sm:px-8 lg:py-8 select-none">
@@ -244,8 +202,14 @@ export default function ProfilePage() {
       <div className="rounded-3xl border border-zylo-border bg-white shadow-xs overflow-hidden">
         {/* Cover Banner */}
         <div className="relative h-[200px] sm:h-[260px] w-full bg-zylo-soft overflow-hidden">
-          <img src={coverImage} alt={name} className="h-full w-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+          {loadingProfile ? (
+            <Skeleton className="h-full w-full rounded-none" />
+          ) : (
+            <>
+              <img src={coverImage} alt={name} className="h-full w-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+            </>
+          )}
         </div>
 
         {/* Profile Info Header */}
@@ -253,26 +217,40 @@ export default function ProfilePage() {
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
             <div className="flex flex-col sm:flex-row sm:items-end gap-5">
               <div className="-mt-14 sm:-mt-16 shrink-0 relative z-10">
-                <Avatar src={avatar} size="h-24 w-24 sm:h-28 sm:w-28" className="ring-4 ring-white shadow-xl bg-white" />
+                {loadingProfile ? (
+                  <AvatarSkeleton size="xl" />
+                ) : (
+                  <Avatar src={avatar} size="h-24 w-24 sm:h-28 sm:w-28" className="ring-4 ring-white shadow-xl bg-white" />
+                )}
               </div>
               <div className="pt-2 sm:pt-0 space-y-1">
-                <div className="flex items-center gap-2">
-                  <h1 className="text-2xl font-extrabold text-zylo-text sm:text-3xl tracking-tight">{name}</h1>
-                </div>
-                <p className="text-xs font-semibold text-zylo-muted">@{profile.username}</p>
+                {loadingProfile ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-7 w-48 rounded-lg" />
+                    <Skeleton className="h-3.5 w-28 rounded" />
+                    <Skeleton className="h-3.5 w-40 rounded" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <h1 className="text-2xl font-extrabold text-zylo-text sm:text-3xl tracking-tight">{name}</h1>
+                    </div>
+                    <p className="text-xs font-semibold text-zylo-muted">@{profile?.username}</p>
 
-                {/* Followers & Following Stats */}
-                <div className="pt-1.5 flex items-center gap-4 text-xs">
-                  <Link href={`/profile/${profile.id}/followers`} className="group flex items-center gap-1 hover:opacity-80 transition">
-                    <span className="font-extrabold text-zylo-text group-hover:text-zylo-purple">{formatNumber(followerCount)}</span>
-                    <span className="font-medium text-zylo-muted group-hover:text-zylo-purple">Followers</span>
-                  </Link>
-                  <span className="text-zylo-border">•</span>
-                  <Link href={`/profile/${profile.id}/following`} className="group flex items-center gap-1 hover:opacity-80 transition">
-                    <span className="font-extrabold text-zylo-text group-hover:text-zylo-purple">{formatNumber(followingCount)}</span>
-                    <span className="font-medium text-zylo-muted group-hover:text-zylo-purple">Following</span>
-                  </Link>
-                </div>
+                    {/* Followers & Following Stats */}
+                    <div className="pt-1.5 flex items-center gap-4 text-xs">
+                      <Link href={`/profile/${profile?.id}/followers`} className="group flex items-center gap-1 hover:opacity-80 transition">
+                        <span className="font-extrabold text-zylo-text group-hover:text-zylo-purple">{formatNumber(followerCount)}</span>
+                        <span className="font-medium text-zylo-muted group-hover:text-zylo-purple">Followers</span>
+                      </Link>
+                      <span className="text-zylo-border">•</span>
+                      <Link href={`/profile/${profile?.id}/following`} className="group flex items-center gap-1 hover:opacity-80 transition">
+                        <span className="font-extrabold text-zylo-text group-hover:text-zylo-purple">{formatNumber(followingCount)}</span>
+                        <span className="font-medium text-zylo-muted group-hover:text-zylo-purple">Following</span>
+                      </Link>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -382,11 +360,11 @@ export default function ProfilePage() {
               <div className="pt-4 border-t border-zylo-border flex flex-wrap gap-6 text-xs font-semibold text-zylo-muted">
                 <div className="flex items-center gap-1.5">
                   <User className="h-4 w-4 text-zylo-purple" />
-                  <span>Username: <strong className="text-zylo-text">@{profile.username}</strong></span>
+                  <span>Username: <strong className="text-zylo-text">@{profile?.username}</strong></span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Calendar className="h-4 w-4 text-zylo-purple" />
-                  <span>Account Type: <strong className="text-zylo-purple">{profile.role}</strong></span>
+                  <span>Account Type: <strong className="text-zylo-purple">{profile?.role}</strong></span>
                 </div>
               </div>
             </div>
@@ -502,7 +480,7 @@ export default function ProfilePage() {
                   <div>
                     <label className="text-xs font-bold text-zylo-text">Email Address</label>
                     <input
-                      value={profile.email || currentUser?.email || ''}
+                      value={profile?.email || currentUser?.email || ''}
                       disabled
                       className="mt-1.5 h-10 w-full rounded-xl border border-zylo-border bg-gray-100 px-3.5 text-xs text-gray-500 cursor-not-allowed"
                     />
@@ -510,7 +488,7 @@ export default function ProfilePage() {
                   <div>
                     <label className="text-xs font-bold text-zylo-text">Account Role</label>
                     <div className="mt-1.5 flex items-center justify-between rounded-xl border border-zylo-border bg-zylo-warm px-4 py-2.5">
-                      <span className="text-xs font-extrabold text-zylo-purple">Account Type: {profile.role}</span>
+                      <span className="text-xs font-extrabold text-zylo-purple">Account Type: {profile?.role}</span>
                       <span className="rounded-md bg-zylo-soft px-2 py-0.5 text-[10px] font-bold text-zylo-purple">Read Only</span>
                     </div>
                   </div>

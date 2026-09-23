@@ -18,6 +18,7 @@ import {
   Shield,
 } from 'lucide-react';
 import { Avatar } from '@/components/shared/Avatar';
+import { VideoPlaceholder, AvatarSkeleton, TextSkeleton, Skeleton, ChatMessageSkeleton } from '@/components/shared/Skeletons';
 import { Stream, ChatMessage } from '@/lib/types';
 import { streamsApi, followsApi, streamAnalyticsApi } from '@/lib/api';
 import { parseApiError } from '@/lib/api/axios-client';
@@ -301,29 +302,11 @@ export default function StreamViewerPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex h-[calc(100vh-60px)] items-center justify-center bg-zylo-warm">
-        <Loader2 className="h-8 w-8 animate-spin text-zylo-purple" />
-      </div>
-    );
-  }
-
-  if (error || !stream) {
-    return (
-      <div className="mx-auto my-16 max-w-md rounded-2xl border border-red-200 bg-red-50 p-8 text-center">
-        <AlertCircle className="mx-auto h-8 w-8 text-red-500" />
-        <h3 className="mt-2 text-sm font-bold text-red-700">{error || 'Stream not found'}</h3>
-        <Link href="/" className="mt-4 inline-block text-xs font-bold text-zylo-purple hover:underline">
-          Back to Home
-        </Link>
-      </div>
-    );
-  }
-
-  const broadcaster = stream.broadcaster;
+  // Render layout shell immediately — no full-page early spinner return!
+  const broadcaster = stream?.broadcaster;
   const broadcasterName = broadcaster?.displayName || broadcaster?.username || 'Broadcaster';
-  const isLive = stream.status === 'LIVE';
+  const isLive = stream?.status === 'LIVE';
+
 
   return (
     <div className="flex flex-col lg:flex-row min-h-[calc(100vh-60px)] bg-zylo-warm text-zylo-text select-none">
@@ -332,7 +315,8 @@ export default function StreamViewerPage() {
         {/* Media Player Container */}
         <div ref={containerRef} className="relative aspect-video w-full overflow-hidden rounded-3xl bg-black border border-zylo-border shadow-xl">
           {/* Top-Right Realtime Gift Notification Overlay Tile */}
-          <GiftNotificationTile streamId={stream.id} />
+          <GiftNotificationTile streamId={stream?.id || ''} />
+
 
           {needsUserInteraction && (
             <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 backdrop-blur-xs">
@@ -348,7 +332,9 @@ export default function StreamViewerPage() {
             </div>
           )}
 
-          {isLive ? (
+          {loading ? (
+            <VideoPlaceholder text="Connecting to broadcast..." />
+          ) : isLive ? (
             <video
               ref={videoRef}
               autoPlay
@@ -356,7 +342,7 @@ export default function StreamViewerPage() {
               muted={isMuted}
               className="h-full w-full object-cover"
             />
-          ) : stream.status === 'SCHEDULED' ? (
+          ) : stream?.status === 'SCHEDULED' ? (
             <div className="relative flex h-full w-full flex-col items-center justify-center bg-[#120e21] text-white p-6 text-center">
               {stream.thumbnailUrl && (
                 <img src={stream.thumbnailUrl} alt={stream.title} className="absolute inset-0 h-full w-full object-cover opacity-30 blur-xs" />
@@ -378,7 +364,7 @@ export default function StreamViewerPage() {
                 {stream.scheduledAt && <CountdownDisplay scheduledAt={stream.scheduledAt} />}
               </div>
             </div>
-          ) : stream.replayUrl ? (
+          ) : stream?.replayUrl ? (
             <video
               ref={replayVideoRef}
               src={stream.replayUrl}
@@ -389,7 +375,7 @@ export default function StreamViewerPage() {
               }}
               className="h-full w-full object-cover"
             />
-          ) : stream.recordingStatus === 'PROCESSING' ? (
+          ) : stream?.recordingStatus === 'PROCESSING' ? (
             <div className="flex h-full w-full flex-col items-center justify-center bg-[#120e21] text-white p-6 text-center">
               <Loader2 className="h-10 w-10 text-amber-400 animate-spin mb-3" />
               <p className="text-base font-extrabold">Recording Processing</p>
@@ -398,8 +384,8 @@ export default function StreamViewerPage() {
           ) : (
             <div className="flex h-full w-full flex-col items-center justify-center bg-[#120e21] text-white">
               <Radio className="h-12 w-12 text-zylo-muted mb-2" />
-              <p className="text-base font-extrabold">Stream has ended</p>
-              <p className="text-xs text-zylo-muted mt-1">Thank you for watching!</p>
+              <p className="text-base font-extrabold">{error ? 'Stream Unavailable' : 'Stream has ended'}</p>
+              <p className="text-xs text-zylo-muted mt-1">{error || 'Thank you for watching!'}</p>
             </div>
           )}
 
@@ -416,8 +402,9 @@ export default function StreamViewerPage() {
             )}
 
             <span className="flex items-center gap-1.5 rounded-lg bg-black/60 px-3 py-1 text-xs font-bold text-white backdrop-blur border border-white/10">
-              <Users className="h-3.5 w-3.5" /> {isLive ? formatViewers(viewerCount) : `${stream.replayViews || 0} views`}
+              <Users className="h-3.5 w-3.5" /> {isLive ? formatViewers(viewerCount) : `${stream?.replayViews || 0} views`}
             </span>
+
 
             {mediaConnecting && (
               <span className="rounded-lg bg-amber-500/80 px-2.5 py-1 text-xs font-extrabold text-black backdrop-blur">
@@ -475,15 +462,19 @@ export default function StreamViewerPage() {
                   </button>
                 )}
               </div>
-              <h1 className="mt-1 text-lg font-bold text-zylo-text">{stream.title}</h1>
+              {loading ? (
+                <TextSkeleton className="mt-1.5 h-5 w-48 rounded" />
+              ) : (
+                <h1 className="mt-1 text-lg font-bold text-zylo-text">{stream?.title}</h1>
+              )}
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {stream.enableGifts !== false ? (
+            {stream?.enableGifts !== false ? (
               <button
                 onClick={() => setShowGiftModal(true)}
-                className="flex items-center gap-2 rounded-xl bg-zylo-purple px-4 py-2.5 text-xs font-extrabold text-white hover:bg-zylo-purple-hover transition shadow-xs cursor-pointer"
+                className="flex items-center gap-2 rounded-xl bg-zylo-[#8B5CF6] bg-zylo-purple px-4 py-2.5 text-xs font-extrabold text-white hover:bg-zylo-purple-hover transition shadow-xs cursor-pointer"
               >
                 <Gem className="h-4 w-4 text-zylo-lime" /> Gift Creator
               </button>
@@ -497,13 +488,15 @@ export default function StreamViewerPage() {
 
         {/* Supporter Leaderboard Component */}
         <div className="mt-6 h-64">
-          <SupporterLeaderboard streamId={stream.id} />
+          {stream?.id ? <SupporterLeaderboard streamId={stream.id} /> : <Skeleton className="h-full w-full rounded-2xl" />}
         </div>
+
       </div>
 
       {/* Right Column: Live Chat or Replay Chat Rail */}
       <div className="w-full lg:w-[350px] shrink-0 border-t lg:border-t-0 lg:border-l border-zylo-border bg-white flex flex-col h-[520px] lg:h-auto">
-        {isLive || stream.status === 'SCHEDULED' ? (
+        {isLive || stream?.status === 'SCHEDULED' ? (
+
           <>
             <div className="p-4 border-b border-zylo-border flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -520,12 +513,12 @@ export default function StreamViewerPage() {
             <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-hide bg-zylo-warm/40">
               {messages.length === 0 ? (
                 <div className="flex h-full items-center justify-center text-center text-xs font-semibold text-zylo-muted">
-                  {stream.status === 'SCHEDULED' ? 'Chat will open once creator starts live stream.' : 'No messages yet.'}
+                  {stream?.status === 'SCHEDULED' ? 'Chat will open once creator starts live stream.' : 'No messages yet.'}
                 </div>
               ) : (
                 messages.map((msg, idx) => {
-                  const isHost = msg.user?.id === stream.broadcasterId;
-                  const canModerate = user && (user.id === stream.broadcasterId || user.role === 'ADMIN') && msg.user?.id !== user.id;
+                  const isHost = msg.user?.id === stream?.broadcasterId;
+                  const canModerate = user && (user.id === stream?.broadcasterId || user.role === 'ADMIN') && msg.user?.id !== user.id;
 
                   return (
                     <div key={msg.id || idx} className="relative flex items-start justify-between gap-2.5 text-xs group">
@@ -544,7 +537,7 @@ export default function StreamViewerPage() {
                         </div>
                       </div>
 
-                      {canModerate && msg.user?.id && (
+                      {canModerate && msg.user?.id && stream?.id && (
                         <div className="relative">
                           <button
                             onClick={() => setActiveModMenuMsgId(activeModMenuMsgId === msg.id ? null : msg.id)}
@@ -563,7 +556,7 @@ export default function StreamViewerPage() {
                                 username: msg.user.username || 'user',
                                 displayName: msg.user.displayName,
                               }}
-                              isBroadcaster={user?.id === stream.broadcasterId}
+                              isBroadcaster={user?.id === stream?.broadcasterId}
                               onClose={() => setActiveModMenuMsgId(null)}
                               onMessageDeleted={(mId) => {
                                 setMessages((prev) => prev.filter((m) => m.id !== mId));
@@ -579,7 +572,7 @@ export default function StreamViewerPage() {
             </div>
 
             <div className="p-3 border-t border-zylo-border bg-white">
-              {stream.enableChat !== false ? (
+              {stream?.enableChat !== false ? (
                 <div className="flex items-center gap-2 rounded-2xl border border-zylo-border bg-zylo-warm p-1.5 pl-3">
                   <input
                     value={chatText}
@@ -614,18 +607,21 @@ export default function StreamViewerPage() {
           <ReplayChatRail
             messages={messages}
             currentTime={videoCurrentTime}
-            streamStartedAt={stream.startedAt}
+            streamStartedAt={stream?.startedAt}
           />
         )}
       </div>
 
       {/* Multi-Balance Gift Modal */}
-      <GiftModal
-        isOpen={showGiftModal}
-        onClose={() => setShowGiftModal(false)}
-        streamId={stream.id}
-        broadcasterName={broadcasterName}
-      />
+      {stream?.id && (
+        <GiftModal
+          isOpen={showGiftModal}
+          onClose={() => setShowGiftModal(false)}
+          streamId={stream.id}
+          broadcasterName={broadcasterName}
+        />
+      )}
+
     </div>
   );
 }

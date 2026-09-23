@@ -1,28 +1,20 @@
 'use client';
 
+import React from 'react';
 import Link from 'next/link';
-import { Loader2 } from 'lucide-react';
 import { useGifts } from '@/lib/hooks/use-queries';
 import { useWalletData } from '@/lib/hooks/use-wallet';
+import { GiftCardSkeleton, MetricSkeleton } from '@/components/shared/Skeletons';
 
 export default function GiftsCatalogPage() {
   const { data: giftsList = [], isLoading: loadingGifts, error: giftsError } = useGifts();
   const { wallet, isBalanceLoading } = useWalletData();
 
-  const loading = loadingGifts || isBalanceLoading;
   const error = (giftsError as any)?.message || '';
   const balance = wallet.purchasedCoins;
 
-  if (loading) {
-    return (
-      <div className="flex h-[60vh] w-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-zylo-purple" />
-      </div>
-    );
-  }
-
   return (
-    <div className="mx-auto max-w-[1140px] px-5 py-6 sm:px-8 lg:py-8">
+    <div className="mx-auto max-w-[1140px] px-5 py-6 sm:px-8 lg:py-8 select-none">
       {/* Header */}
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -36,7 +28,11 @@ export default function GiftsCatalogPage() {
 
         <div className="flex items-center gap-3 rounded-2xl border border-zylo-border bg-white px-4 py-2.5 shadow-xs">
           <span className="text-xs font-bold text-zylo-muted">Balance:</span>
-          <span className="text-sm font-extrabold text-zylo-purple">✦ {balance}</span>
+          {isBalanceLoading ? (
+            <MetricSkeleton className="h-5 w-16" />
+          ) : (
+            <span className="text-sm font-extrabold text-zylo-purple">✦ {balance}</span>
+          )}
           <Link
             href="/wallet"
             className="rounded-xl bg-zylo-lime px-3 py-1 text-xs font-extrabold text-zylo-text hover:brightness-95 transition"
@@ -53,7 +49,18 @@ export default function GiftsCatalogPage() {
       )}
 
       {/* Gifts Grid */}
-      {giftsList.length === 0 ? (
+      {loadingGifts ? (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-4">
+          <GiftCardSkeleton />
+          <GiftCardSkeleton />
+          <GiftCardSkeleton />
+          <GiftCardSkeleton />
+          <GiftCardSkeleton />
+          <GiftCardSkeleton />
+          <GiftCardSkeleton />
+          <GiftCardSkeleton />
+        </div>
+      ) : giftsList.length === 0 ? (
         <div className="rounded-3xl border border-zylo-border bg-white p-8 text-center text-xs font-semibold text-zylo-secondary shadow-sm">
           No virtual gifts available.
         </div>

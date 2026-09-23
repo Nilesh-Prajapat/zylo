@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { streamsApi, walletApi, giftApi, followsApi, usersApi, CreateStreamParams, UpdateStreamParams } from '@/lib/api';
+import { streamsApi, walletApi, giftApi, followsApi, usersApi, adminApi, CreateStreamParams, UpdateStreamParams } from '@/lib/api';
 import { dedupeRequest } from '@/lib/api/cache-utils';
 import { socketClient } from '@/lib/socket';
-import type { Stream, Gift, ChatMessage } from '@/lib/types';
+import type { Stream, Gift, ChatMessage, AdminUser, AdminStream, AdminReport } from '@/lib/types';
+
 
 // ─── Query Keys ───────────────────────────────────────────────
 
@@ -279,4 +280,32 @@ export function useFollowing(userId: string) {
     staleTime: 5 * 60 * 1000, // 5 minutes cache
   });
 }
+
+// ─── Admin Queries ─────────────────────────────────────────────
+
+export function useAdminUsers() {
+  return useQuery<AdminUser[]>({
+    queryKey: queryKeys.adminUsers,
+    queryFn: () => dedupeRequest('admin-users', () => adminApi.getUsers()),
+    staleTime: 15 * 1000,
+  });
+}
+
+export function useAdminStreams() {
+  return useQuery<AdminStream[]>({
+    queryKey: queryKeys.adminStreams,
+    queryFn: () => dedupeRequest('admin-streams', () => adminApi.getStreams()),
+    staleTime: 15 * 1000,
+  });
+}
+
+export function useAdminReports() {
+  return useQuery<AdminReport[]>({
+    queryKey: queryKeys.adminReports,
+    queryFn: () => dedupeRequest('admin-reports', () => adminApi.getReports()),
+    staleTime: 15 * 1000,
+  });
+}
+
+
 

@@ -1,53 +1,28 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+import React, { useState } from 'react';
 import { adminApi } from '@/lib/api';
-import { AdminReport } from '@/lib/types';
+import { useAdminReports } from '@/lib/hooks/use-queries';
+import { useQueryClient } from '@tanstack/react-query';
+import { AdminTableRowSkeleton } from '@/components/shared/Skeletons';
 
 export default function AdminReportsPage() {
-  const [reports, setReports] = useState<AdminReport[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { data: reports = [], isLoading: loading, error: queryError } = useAdminReports();
+  const queryClient = useQueryClient();
   const [resolvingId, setResolvingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function loadReports() {
-      try {
-        setLoading(true);
-        setError('');
-        const data = await adminApi.getReports();
-        setReports(data);
-      } catch (err: any) {
-        setError(err.response?.data?.error?.message || 'Failed to fetch reports');
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadReports();
-  }, []);
+  const error = queryError ? 'Failed to fetch reports' : '';
 
   const handleResolve = async (id: string, status: 'RESOLVED' | 'DISMISSED') => {
     try {
       setResolvingId(id);
       await adminApi.resolveReport(id, status);
-      setReports((prev) =>
-        prev.map((r) => (r.id === id ? { ...r, status } : r))
-      );
+      queryClient.invalidateQueries({ queryKey: ['admin-reports'] });
     } catch (err: any) {
       alert(err.response?.data?.error?.message || 'Failed to update report status');
     } finally {
       setResolvingId(null);
     }
   };
-
-  if (loading) {
-    return (
-      <div className="flex h-[60vh] w-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-zylo-purple" />
-      </div>
-    );
-  }
 
   return (
     <div>
@@ -63,21 +38,29 @@ export default function AdminReportsPage() {
       )}
 
       <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden">
-        {reports.length === 0 ? (
-          <div className="p-8 text-center text-xs text-slate-400">No moderation reports found.</div>
-        ) : (
-          <table className="w-full text-left text-xs text-slate-300">
-            <thead className="border-b border-slate-800 bg-slate-900/50 text-[11px] font-bold text-slate-400 uppercase">
+        <table className="w-full text-left text-xs text-slate-300">
+          <thead className="border-b border-slate-800 bg-slate-900/50 text-[11px] font-bold text-slate-400 uppercase">
+            <tr>
+              <th className="p-4">Reporter</th>
+              <th className="p-4">Target</th>
+              <th className="p-4">Reason</th>
+              <th className="p-4">Status</th>
+              <th className="p-4 text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800">
+            {loading ? (
+              <>
+                <tr><td colSpan={5}><AdminTableRowSkeleton /></td></tr>
+                <tr><td colSpan={5}><AdminTableRowSkeleton /></td></tr>
+                <tr><td colSpan={5}><AdminTableRowSkeleton /></td></tr>
+              </>
+            ) : reports.length === 0 ? (
               <tr>
-                <th className="p-4">Reporter</th>
-                <th className="p-4">Target</th>
-                <th className="p-4">Reason</th>
-                <th className="p-4">Status</th>
-                <th className="p-4 text-right">Action</th>
+                <td colSpan={5} className="p-8 text-center text-xs text-slate-400">No moderation reports found.</td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800">
-              {reports.map((r) => (
+            ) : (
+              reports.map((r) => (
                 <tr key={r.id} className="hover:bg-slate-900/40 transition">
                   <td className="p-4 font-bold text-slate-300">
                     {r.reporter?.displayName || r.reporter?.username || 'User'}
@@ -112,10 +95,10 @@ export default function AdminReportsPage() {
                     )}
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );

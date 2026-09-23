@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import Link from 'next/link';
 import { Radio, Compass } from 'lucide-react';
 import { useFollowingFeed } from '@/lib/hooks/useData';
@@ -60,22 +61,11 @@ export default function FollowingPage() {
         </div>
       )}
 
-      {/* Loading Shimmer State */}
-      {isLoading && (
-        <>
-          <div className="mb-8">
-            <CreatorRailSkeleton />
-          </div>
-          <section className="mb-10">
-            <SectionHeader title="Live Now" subtitle="Followed creators currently streaming live" />
-            <StreamGridSkeleton count={4} />
-          </section>
-        </>
-      )}
-
-      {/* Creator Story Rail */}
-      {!isLoading && creators.length > 0 && (
-        <div className="mb-8">
+      {/* Creator Story Rail Section */}
+      <div className="mb-8">
+        {isLoading ? (
+          <CreatorRailSkeleton />
+        ) : creators.length > 0 ? (
           <div className="flex items-center gap-4 overflow-x-auto pb-3 pt-1 scrollbar-none">
             {creators.map((creator: any) => (
               <Link
@@ -101,36 +91,44 @@ export default function FollowingPage() {
               </Link>
             ))}
           </div>
-        </div>
-      )}
+        ) : null}
+      </div>
 
       {/* Live Now Priority Section */}
-      {!isLoading && liveStreams.length > 0 && (
+      {(isLoading || liveStreams.length > 0) && (
         <section className="mb-10">
           <SectionHeader
             title="Live Now"
             subtitle="Followed creators currently streaming live"
           />
-          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {liveStreams.map((stream: any) => (
-              <StreamCard key={stream.id} stream={stream} />
-            ))}
-          </div>
+          {isLoading ? (
+            <StreamGridSkeleton count={4} />
+          ) : (
+            <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {liveStreams.map((stream: any) => (
+                <StreamCard key={stream.id} stream={stream} />
+              ))}
+            </div>
+          )}
         </section>
       )}
 
       {/* Recently Published Section */}
-      {!isLoading && recentlyPublished.length > 0 && (
+      {(isLoading || recentlyPublished.length > 0) && (
         <section className="mb-10">
           <SectionHeader
             title="Recently Published"
             subtitle="Replays and videos from creators you follow"
           />
-          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {recentlyPublished.map((stream: any) => (
-              <StreamCard key={stream.id} stream={stream} />
-            ))}
-          </div>
+          {isLoading ? (
+            <StreamGridSkeleton count={4} />
+          ) : (
+            <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {recentlyPublished.map((stream: any) => (
+                <StreamCard key={stream.id} stream={stream} />
+              ))}
+            </div>
+          )}
         </section>
       )}
 

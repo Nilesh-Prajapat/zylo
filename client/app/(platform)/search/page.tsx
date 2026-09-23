@@ -3,11 +3,12 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Search, ArrowLeft, Radio, User, Loader2 } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { Stream, UserProfile } from '@/lib/types';
 import { streamsApi, usersApi } from '@/lib/api';
 import { StreamCard } from '@/components/shared/StreamCard';
 import { CreatorCard } from '@/components/shared/CreatorCard';
+import { StreamCardSkeleton, AvatarSkeleton, Skeleton } from '@/components/shared/Skeletons';
 
 export default function GlobalSearchPage() {
   const searchParams = useSearchParams();
@@ -58,12 +59,12 @@ export default function GlobalSearchPage() {
   }, [query]);
 
   return (
-    <div className="mx-auto max-w-[1280px] px-5 py-6 sm:px-8 lg:py-8 space-y-8">
+    <div className="mx-auto max-w-[1280px] px-5 py-6 sm:px-8 lg:py-8 space-y-8 select-none">
       {/* Top Search Navigation Header */}
       <div className="flex items-center gap-4 border-b border-zylo-border pb-6">
         <button
           onClick={() => router.back()}
-          className="flex h-10 w-10 items-center justify-center rounded-2xl border border-zylo-border bg-white text-zylo-secondary hover:bg-zylo-warm transition"
+          className="flex h-10 w-10 items-center justify-center rounded-2xl border border-zylo-border bg-white text-zylo-secondary hover:bg-zylo-warm transition cursor-pointer"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
@@ -75,41 +76,57 @@ export default function GlobalSearchPage() {
         </div>
       </div>
 
-      {loading ? (
-        <div className="flex h-64 items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-zylo-purple" />
+      <div className="space-y-10">
+        {/* Creators Section */}
+        <div>
+          <h2 className="text-lg font-extrabold text-zylo-text mb-4">
+            Creators {loading ? '' : `(${creators.length})`}
+          </h2>
+          {loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center gap-3 p-4 rounded-2xl border border-zylo-border bg-white shadow-xs">
+                  <AvatarSkeleton size="md" />
+                  <div className="space-y-1.5 flex-1">
+                    <Skeleton className="h-4 w-32 rounded" />
+                    <Skeleton className="h-3 w-20 rounded" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : creators.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {creators.map((c) => (
+                <CreatorCard key={c.id} creator={c} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-zylo-muted">No creators matching "{query}".</p>
+          )}
         </div>
-      ) : (
-        <div className="space-y-10">
-          {/* Creators Section */}
-          <div>
-            <h2 className="text-lg font-extrabold text-zylo-text mb-4">Creators ({creators.length})</h2>
-            {creators.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {creators.map((c) => (
-                  <CreatorCard key={c.id} creator={c} />
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-zylo-muted">No creators matching "{query}".</p>
-            )}
-          </div>
 
-          {/* Live Streams Section */}
-          <div>
-            <h2 className="text-lg font-extrabold text-zylo-text mb-4">Live Streams ({streams.length})</h2>
-            {streams.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {streams.map((s) => (
-                  <StreamCard key={s.id} stream={s} />
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-zylo-muted">No live streams matching "{query}".</p>
-            )}
-          </div>
+        {/* Live Streams Section */}
+        <div>
+          <h2 className="text-lg font-extrabold text-zylo-text mb-4">
+            Live Streams {loading ? '' : `(${streams.length})`}
+          </h2>
+          {loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <StreamCardSkeleton />
+              <StreamCardSkeleton />
+              <StreamCardSkeleton />
+            </div>
+          ) : streams.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {streams.map((s) => (
+                <StreamCard key={s.id} stream={s} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-zylo-muted">No live streams matching "{query}".</p>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

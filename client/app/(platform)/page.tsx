@@ -22,7 +22,7 @@ import { StreamCard } from '@/components/shared/StreamCard';
 import { CreatorRow } from '@/components/shared/CreatorRow';
 import { SectionHeader } from '@/components/shared/SectionHeader';
 import { Stream, UserProfile } from '@/lib/types';
-import { useLiveStreams, useTrendingCreators } from '@/lib/hooks/use-queries';
+import { useLiveStreams, useUpcomingStreams, useTrendingCreators } from '@/lib/hooks/use-queries';
 
 const categories: { label: string; icon: typeof Music2 }[] = [
   { label: 'All', icon: LayoutGrid },
@@ -41,6 +41,7 @@ export default function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
 
   const { data: streams = [], isLoading: loadingStreams, error: streamsError } = useLiveStreams();
+  const { data: upcomingStreams = [] } = useUpcomingStreams();
   const { data: creators = [], isLoading: loadingCreators } = useTrendingCreators();
 
   const loading = loadingStreams;
@@ -142,7 +143,7 @@ export default function HomePage() {
             <h3 className="mt-4 text-base font-extrabold text-zylo-text">No one is live right now</h3>
             <p className="mt-1 text-xs text-zylo-secondary">Be the first to start a live stream and connect with viewers.</p>
             <Link
-              href="/go-live"
+              href="/studio?golive=true"
               className="mt-5 rounded-xl bg-zylo-purple px-5 py-2.5 text-xs font-extrabold text-white shadow-md hover:bg-[#6926d1] transition"
             >
               Go Live Now
@@ -157,7 +158,22 @@ export default function HomePage() {
         )}
       </section>
 
-      {/* 4. Trending Creators Section */}
+      {/* 4. Upcoming Live Streams Section */}
+      {upcomingStreams.length > 0 && (
+        <section className="mt-10">
+          <SectionHeader
+            title="Upcoming Live"
+            subtitle="Scheduled broadcasts coming up soon — set a reminder!"
+          />
+          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            {upcomingStreams.map((stream) => (
+              <StreamCard key={stream.id} stream={stream} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* 5. Trending Creators Section */}
       {creators.length > 0 && (
         <section className="mt-10">
           <SectionHeader

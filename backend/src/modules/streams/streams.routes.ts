@@ -79,6 +79,14 @@ router.post(
       if (!cat) throw AppError.badRequest('Invalid category');
     }
 
+    // Validate scheduledAt if provided
+    if (scheduledAt) {
+      const dateObj = new Date(scheduledAt);
+      if (isNaN(dateObj.getTime()) || dateObj.getTime() <= Date.now()) {
+        throw AppError.badRequest('Scheduled date and time must be in the future');
+      }
+    }
+
     // Always create stream in SCHEDULED state — creator must explicitly START LIVE
     const stream = await prisma.stream.create({
       data: {
@@ -189,14 +197,17 @@ router.post('/:id/start', requireAuth, asyncHandler(async (req, res) => {
   const redis = getRedis();
   await redis.del(RedisKeys.liveStreams());
   await redis.del(RedisKeys.upcomingStreams());
+  await redis.del('streams:discover');
   await redis.del(RedisKeys.streamCache(stream.id));
 
-  // Broadcast realtime event
-  emitToStream(stream.id, 'stream:status_changed', {
+  // Broadcast realtime events
+  const statusPayload = {
     streamId: stream.id,
     status: StreamStatus.LIVE,
     startedAt: updated.startedAt?.toISOString(),
-  });
+  };
+  emitToStream(stream.id, 'stream:status_changed', statusPayload);
+  emitToStream(stream.id, 'stream:started', statusPayload);
 
   // Notify followers asynchronously
   try {
@@ -396,6 +407,62 @@ router.get('/upcoming', asyncHandler(async (req, res) => {
   await redis.setex(RedisKeys.upcomingStreams(), RedisTTL.UPCOMING_STREAMS_CACHE, JSON.stringify(streams));
 
   sendSuccess(res, { streams });
+}));
+
+// ─── GET /api/v1/streams/discover ─────────────────────────────
+
+router.get('/discover', optionalAuth, asyncHandler(async (req, res) => {
+  const redis = getRedis();
+  const cached = await redis.get('streams:discover');
+  if (cached) {
+    sendSuccess(res, JSON.parse(cached));
+    return;
+  }
+
+  const [live, upcoming] = await Promise.all([
+    prisma.stream.findMany({
+      where: { status: StreamStatus.LIVE },
+      orderBy: { viewerCount: 'desc' },
+      take: 20,
+      select: {
+        id: true,
+        publicId: true,
+        title: true,
+        description: true,
+        thumbnailUrl: true,
+        status: true,
+        viewerCount: true,
+        startedAt: true,
+        broadcaster: {
+          select: { id: true, username: true, displayName: true, avatarUrl: true },
+        },
+      },
+    }),
+    prisma.stream.findMany({
+      where: {
+        status: StreamStatus.SCHEDULED,
+        scheduledAt: { gte: new Date() },
+      },
+      orderBy: { scheduledAt: 'asc' },
+      take: 20,
+      select: {
+        id: true,
+        publicId: true,
+        title: true,
+        description: true,
+        thumbnailUrl: true,
+        status: true,
+        scheduledAt: true,
+        broadcaster: {
+          select: { id: true, username: true, displayName: true, avatarUrl: true },
+        },
+      },
+    }),
+  ]);
+
+  const payload = { live, upcoming };
+  await redis.setex('streams:discover', 15, JSON.stringify(payload));
+  sendSuccess(res, payload);
 }));
 
 // ─── GET /api/v1/streams/:id/token (Viewer LiveKit Token) ─────

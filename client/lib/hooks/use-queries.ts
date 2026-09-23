@@ -73,6 +73,14 @@ export function useUpcomingStreams() {
   });
 }
 
+export function useDiscoverStreams() {
+  return useQuery({
+    queryKey: ['discoverStreams'] as const,
+    queryFn: () => streamsApi.getDiscoverStreams(),
+    staleTime: 15 * 1000,
+  });
+}
+
 export function useStream(id: string) {
   return useQuery({
     queryKey: queryKeys.stream(id),

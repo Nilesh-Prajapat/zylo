@@ -145,6 +145,11 @@ export const streamsApi = {
     return res.data.data?.streams || [];
   },
 
+  async getDiscoverStreams(): Promise<{ live: Stream[]; upcoming: Stream[] }> {
+    const res = await apiClient.get('/streams/discover');
+    return res.data.data || { live: [], upcoming: [] };
+  },
+
   async getStreamById(id: string): Promise<{ stream: Stream; isFollowing?: boolean }> {
     const res = await apiClient.get(`/streams/${id}`);
     return res.data.data;

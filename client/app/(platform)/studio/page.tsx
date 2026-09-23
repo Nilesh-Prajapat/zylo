@@ -36,6 +36,7 @@ import {
 import { mediaApi } from '@/lib/api';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { CustomToggle } from '@/components/ui/CustomToggle';
+import { ThumbnailUploader } from '@/components/studio/ThumbnailUploader';
 
 const CATEGORIES = [
   'Just Chatting',
@@ -85,10 +86,12 @@ export default function StudioDashboardPage() {
   const [enableChat, setEnableChat] = useState(true);
   const [enableGifts, setEnableGifts] = useState(true);
   const [saveRecording, setSaveRecording] = useState(true);
+  const [step, setStep] = useState<1 | 2>(1);
   const [modalError, setModalError] = useState<string | null>(null);
 
   const resetFlow = () => {
     setEntryOption(null);
+    setStep(1);
     setTitle('');
     setDescription('');
     setCategory('Just Chatting');
@@ -383,20 +386,47 @@ export default function StudioDashboardPage() {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 overflow-y-auto">
           <div className="w-full max-w-lg rounded-3xl border border-zylo-border bg-white p-6 shadow-2xl space-y-5 my-auto">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-zylo-border pb-3">
-              <div>
-                <span className="text-[10px] font-black text-zylo-purple uppercase">Broadcaster Setup</span>
-                <h2 className="text-lg font-extrabold text-zylo-text">
-                  {!entryOption ? 'Start Streaming' : entryOption === 'NOW' ? 'Go Live Now' : 'Schedule Live'}
-                </h2>
+            {/* Header & Stepper */}
+            <div className="border-b border-zylo-border pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-black text-zylo-purple uppercase">Broadcaster Setup</span>
+                  <h2 className="text-lg font-extrabold text-zylo-text">
+                    {!entryOption
+                      ? 'Start Streaming'
+                      : entryOption === 'NOW'
+                      ? 'Go Live Now'
+                      : 'Schedule Live'}
+                  </h2>
+                </div>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="rounded-full bg-zylo-warm p-1.5 text-zylo-muted hover:text-zylo-text transition"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-              <button
-                onClick={() => setShowModal(false)}
-                className="rounded-full bg-zylo-warm p-1.5 text-zylo-muted hover:text-zylo-text transition"
-              >
-                <X className="h-4 w-4" />
-              </button>
+
+              {/* Stepper Display */}
+              {entryOption && (
+                <div className="mt-3 flex items-center justify-center gap-2 text-xs font-bold text-zylo-secondary">
+                  <span className={`px-2 py-0.5 rounded-full ${step === 1 ? 'bg-zylo-purple text-white' : 'bg-green-100 text-green-700'}`}>
+                    {step > 1 ? '✓ Details' : '1. Details'}
+                  </span>
+                  <span className="text-zylo-muted">───────</span>
+                  {entryOption === 'SCHEDULED' && (
+                    <>
+                      <span className={`px-2 py-0.5 rounded-full ${step === 2 ? 'bg-zylo-purple text-white' : 'bg-zylo-warm text-zylo-muted'}`}>
+                        2. Schedule
+                      </span>
+                      <span className="text-zylo-muted">───────</span>
+                    </>
+                  )}
+                  <span className="px-2 py-0.5 rounded-full bg-zylo-warm text-zylo-muted">
+                    Studio
+                  </span>
+                </div>
+              )}
             </div>
 
             {modalError && (
@@ -406,7 +436,7 @@ export default function StudioDashboardPage() {
               </div>
             )}
 
-            {/* Step 1: Entry Options Selection */}
+            {/* Entry Options Selection */}
             {!entryOption && (
               <div className="space-y-4 py-2">
                 <p className="text-xs font-bold text-zylo-secondary text-center">
@@ -416,7 +446,10 @@ export default function StudioDashboardPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <button
                     type="button"
-                    onClick={() => setEntryOption('NOW')}
+                    onClick={() => {
+                      setEntryOption('NOW');
+                      setStep(1);
+                    }}
                     className="flex flex-col items-center p-6 rounded-2xl border-2 border-zylo-border bg-zylo-warm hover:border-zylo-purple hover:bg-white transition text-center group cursor-pointer"
                   >
                     <div className="h-12 w-12 rounded-2xl bg-[#B8FF3D] flex items-center justify-center mb-3 shadow-xs">
@@ -430,7 +463,10 @@ export default function StudioDashboardPage() {
 
                   <button
                     type="button"
-                    onClick={() => setEntryOption('SCHEDULED')}
+                    onClick={() => {
+                      setEntryOption('SCHEDULED');
+                      setStep(1);
+                    }}
                     className="flex flex-col items-center p-6 rounded-2xl border-2 border-zylo-border bg-zylo-warm hover:border-zylo-purple hover:bg-white transition text-center group cursor-pointer"
                   >
                     <div className="h-12 w-12 rounded-2xl bg-zylo-purple flex items-center justify-center mb-3 shadow-xs text-white">
@@ -445,8 +481,8 @@ export default function StudioDashboardPage() {
               </div>
             )}
 
-            {/* Step 2: Form for GO LIVE NOW / SCHEDULE LIVE */}
-            {entryOption && (
+            {/* STEP 1: DETAILS (FOR BOTH FLOWS) */}
+            {entryOption && step === 1 && (
               <div className="space-y-4">
                 <div>
                   <label className="text-xs font-extrabold text-zylo-text block mb-1">
@@ -471,34 +507,8 @@ export default function StudioDashboardPage() {
                   />
                 </div>
 
-                {/* Scheduling Date & Time Pickers for SCHEDULE LIVE */}
-                {entryOption === 'SCHEDULED' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-2xl border border-amber-200 bg-amber-50">
-                    <div>
-                      <label className="text-xs font-extrabold text-amber-900 block mb-1">
-                        Scheduled Date <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="date"
-                        value={scheduledDate}
-                        min={new Date().toISOString().split('T')[0]}
-                        onChange={(e) => setScheduledDate(e.target.value)}
-                        className="h-10 w-full rounded-xl border border-amber-300 bg-white px-3 text-xs font-bold text-amber-900 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-extrabold text-amber-900 block mb-1">
-                        Scheduled Time <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="time"
-                        value={scheduledTime}
-                        onChange={(e) => setScheduledTime(e.target.value)}
-                        className="h-10 w-full rounded-xl border border-amber-300 bg-white px-3 text-xs font-bold text-amber-900 outline-none"
-                      />
-                    </div>
-                  </div>
-                )}
+                {/* Thumbnail Uploader Required/Supported for both GO LIVE NOW & SCHEDULE LIVE */}
+                <ThumbnailUploader value={thumbnailUrl} onChange={setThumbnailUrl} />
 
                 <div>
                   <label className="text-xs font-extrabold text-zylo-text block mb-2">Category</label>
@@ -555,10 +565,102 @@ export default function StudioDashboardPage() {
                 <div className="flex gap-3 pt-3 border-t border-zylo-border">
                   <button
                     type="button"
-                    onClick={() => setEntryOption(null)}
+                    onClick={() => {
+                      setEntryOption(null);
+                      setStep(1);
+                    }}
                     className="rounded-2xl border border-zylo-border bg-zylo-warm px-5 py-3 text-xs font-bold text-zylo-text hover:bg-zylo-soft transition"
                   >
                     ← Option
+                  </button>
+
+                  {entryOption === 'NOW' ? (
+                    <button
+                      type="button"
+                      onClick={handleCreateStream}
+                      disabled={createStreamMutation.isPending || uploading}
+                      className="flex-1 rounded-2xl bg-[#B8FF3D] py-3 text-xs font-black text-black hover:bg-[#a6fa26] transition shadow-md disabled:opacity-50 cursor-pointer"
+                    >
+                      {createStreamMutation.isPending ? 'Preparing Stream Studio...' : 'Continue to Stream Studio →'}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!title.trim()) {
+                          setModalError('Stream title is required.');
+                          return;
+                        }
+                        setModalError(null);
+                        setStep(2);
+                      }}
+                      className="flex-1 rounded-2xl bg-zylo-purple py-3 text-xs font-extrabold text-white hover:bg-zylo-purple-hover transition shadow-md cursor-pointer"
+                    >
+                      Continue to Schedule →
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2: SCHEDULE (ONLY FOR SCHEDULE LIVE) */}
+            {entryOption === 'SCHEDULED' && step === 2 && (
+              <div className="space-y-5 py-2">
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-4">
+                  <div className="flex items-center gap-2 text-amber-900 font-extrabold text-xs">
+                    <Calendar className="h-4 w-4 text-amber-600" />
+                    Select Date & Time for Scheduled Stream
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-extrabold text-amber-900 block mb-1">
+                        Scheduled Date <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={scheduledDate}
+                        min={new Date().toISOString().split('T')[0]}
+                        onChange={(e) => setScheduledDate(e.target.value)}
+                        className="h-10 w-full rounded-xl border border-amber-300 bg-white px-3 text-xs font-bold text-amber-900 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-extrabold text-amber-900 block mb-1">
+                        Start Time <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="time"
+                        value={scheduledTime}
+                        onChange={(e) => setScheduledTime(e.target.value)}
+                        className="h-10 w-full rounded-xl border border-amber-300 bg-white px-3 text-xs font-bold text-amber-900 outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {scheduledDate && scheduledTime && (
+                    <div className="p-3 rounded-xl bg-white border border-amber-200 text-center">
+                      <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block">Scheduled for</span>
+                      <span className="text-xs font-black text-amber-900">
+                        {new Date(`${scheduledDate}T${scheduledTime}`).toLocaleString(undefined, {
+                          month: 'long',
+                          day: 'numeric',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-3 pt-2 border-t border-zylo-border">
+                  <button
+                    type="button"
+                    onClick={() => setStep(1)}
+                    className="rounded-2xl border border-zylo-border bg-zylo-warm px-5 py-3 text-xs font-bold text-zylo-text hover:bg-zylo-soft transition"
+                  >
+                    ← Back to Details
                   </button>
                   <button
                     type="button"

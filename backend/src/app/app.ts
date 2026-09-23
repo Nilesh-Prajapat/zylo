@@ -27,18 +27,40 @@ export function createApp(): express.Application {
   }));
 
   // CORS configuration
-  const allowedOrigins = env.CORS_ORIGINS.split(',').map(s => s.trim());
+  const rawAllowedOrigins = env.CORS_ORIGINS ? env.CORS_ORIGINS.split(',').map(s => s.trim().replace(/\/$/, '')) : [];
+  const frontendUrl = env.FRONTEND_URL ? env.FRONTEND_URL.replace(/\/$/, '') : '';
+
   const corsOptions: cors.CorsOptions = {
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin) || env.NODE_ENV === 'development') {
+      // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      const cleanOrigin = origin.replace(/\/$/, '');
+
+      const isAllowed =
+        env.NODE_ENV === 'development' ||
+        rawAllowedOrigins.includes('*') ||
+        rawAllowedOrigins.includes(cleanOrigin) ||
+        (frontendUrl && cleanOrigin === frontendUrl) ||
+        cleanOrigin === 'https://zylo.rocks' ||
+        cleanOrigin === 'https://www.zylo.rocks' ||
+        cleanOrigin.endsWith('.zylo.rocks') ||
+        cleanOrigin.endsWith('.vercel.app') ||
+        cleanOrigin.startsWith('http://localhost:');
+
+      if (isAllowed) {
         callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS'));
+        callback(null, false);
       }
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+    exposedHeaders: ['Content-Range', 'X-Content-Range'],
+    maxAge: 86400,
   };
 
   app.use(cors(corsOptions));

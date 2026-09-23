@@ -15,6 +15,7 @@ import {
   Radio,
   Maximize,
   Minimize,
+  Shield,
 } from 'lucide-react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Stream, ChatMessage } from '@/lib/types';
@@ -27,6 +28,7 @@ import { GiftNotificationTile } from '@/components/gifts/GiftNotificationTile';
 import { GiftModal } from '@/components/gifts/GiftModal';
 import { ReplayChatRail } from '@/components/stream/ReplayChatRail';
 import { SupporterLeaderboard } from '@/components/stream/SupporterLeaderboard';
+import { ChatModerationMenu } from '@/components/stream/ChatModerationMenu';
 
 function formatViewers(count: number): string {
   if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
@@ -208,6 +210,9 @@ export default function StreamViewerPage() {
     };
   }, [stream?.id, stream?.status]);
 
+  const [isMutedOrBanned, setIsMutedOrBanned] = useState(false);
+  const [activeModMenuMsgId, setActiveModMenuMsgId] = useState<string | null>(null);
+
   // 3. Socket.IO Realtime Listeners
   useEffect(() => {
     if (!streamId) return;
@@ -230,10 +235,36 @@ export default function StreamViewerPage() {
       setStream((prev) => (prev ? { ...prev, status: data.status } : null));
     };
 
+    const handleGiftEvent = (data: any) => {
+      const giftMsg: ChatMessage = {
+        id: data.id || `gift-${Date.now()}-${Math.random()}`,
+        streamId,
+        userId: data.sender?.id || '',
+        message: `🎁 ${data.senderName || data.sender?.displayName || 'Viewer'} sent ${data.giftName || 'Gift'} (${data.giftEmoji || '🎁'} x${data.quantity || 1})!`,
+        createdAt: data.createdAt || new Date().toISOString(),
+        user: {
+          id: data.sender?.id || '',
+          username: data.sender?.username || data.senderName || 'Viewer',
+          displayName: data.sender?.displayName || data.senderName || 'Viewer',
+          avatarUrl: data.sender?.avatarUrl || null,
+        },
+      };
+      setMessages((prev) => [...prev, giftMsg]);
+    };
+
+    const handleMuted = () => setIsMutedOrBanned(true);
+    const handleBanned = () => setIsMutedOrBanned(true);
+    const handleUnbanned = () => setIsMutedOrBanned(false);
+
     socketClient.on('chat:message', handleMessage);
     socketClient.on('chat:deleted', handleChatDeleted);
     socketClient.on('stream:viewer_count', handleViewerCount);
     socketClient.on('stream:status_changed', handleStatusChanged);
+    socketClient.on('gift:sent', handleGiftEvent);
+    socketClient.on('gift:received', handleGiftEvent);
+    socketClient.on('moderation:muted', handleMuted);
+    socketClient.on('moderation:banned', handleBanned);
+    socketClient.on('moderation:unbanned', handleUnbanned);
 
     return () => {
       socketClient.leaveStream(streamId);
@@ -241,6 +272,11 @@ export default function StreamViewerPage() {
       socketClient.off('chat:deleted', handleChatDeleted);
       socketClient.off('stream:viewer_count', handleViewerCount);
       socketClient.off('stream:status_changed', handleStatusChanged);
+      socketClient.off('gift:sent', handleGiftEvent);
+      socketClient.off('gift:received', handleGiftEvent);
+      socketClient.off('moderation:muted', handleMuted);
+      socketClient.off('moderation:banned', handleBanned);
+      socketClient.off('moderation:unbanned', handleUnbanned);
     };
   }, [streamId]);
 
@@ -444,12 +480,18 @@ export default function StreamViewerPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowGiftModal(true)}
-              className="flex items-center gap-2 rounded-xl bg-zylo-purple px-4 py-2.5 text-xs font-extrabold text-white hover:bg-zylo-purple-hover transition shadow-xs"
-            >
-              <Gem className="h-4 w-4 text-zylo-lime" /> Gift Creator
-            </button>
+            {stream.enableGifts !== false ? (
+              <button
+                onClick={() => setShowGiftModal(true)}
+                className="flex items-center gap-2 rounded-xl bg-zylo-purple px-4 py-2.5 text-xs font-extrabold text-white hover:bg-zylo-purple-hover transition shadow-xs cursor-pointer"
+              >
+                <Gem className="h-4 w-4 text-zylo-lime" /> Gift Creator
+              </button>
+            ) : (
+              <div className="flex items-center gap-1.5 rounded-xl bg-zylo-warm border border-zylo-border px-3.5 py-2 text-xs font-bold text-zylo-muted">
+                <Gem className="h-4 w-4 text-zylo-muted" /> Gifts Disabled
+              </div>
+            )}
           </div>
         </div>
 
@@ -481,36 +523,91 @@ export default function StreamViewerPage() {
                   {stream.status === 'SCHEDULED' ? 'Chat will open once creator starts live stream.' : 'No messages yet.'}
                 </div>
               ) : (
-                messages.map((msg, idx) => (
-                  <div key={msg.id || idx} className="flex items-start gap-2.5 text-xs">
-                    <Avatar src={msg.user?.avatarUrl} size="h-7 w-7" />
-                    <div className="min-w-0 flex-1">
-                      <span className="font-extrabold text-zylo-text">{msg.user?.displayName || msg.user?.username || 'User'}</span>
-                      <p className="mt-0.5 leading-relaxed text-zylo-secondary">{msg.message}</p>
+                messages.map((msg, idx) => {
+                  const isHost = msg.user?.id === stream.broadcasterId;
+                  const canModerate = user && (user.id === stream.broadcasterId || user.role === 'ADMIN') && msg.user?.id !== user.id;
+
+                  return (
+                    <div key={msg.id || idx} className="relative flex items-start justify-between gap-2.5 text-xs group">
+                      <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                        <Avatar src={msg.user?.avatarUrl} size="h-7 w-7" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-extrabold text-zylo-text">{msg.user?.displayName || msg.user?.username || 'User'}</span>
+                            {isHost && (
+                              <span className="rounded bg-zylo-purple px-1 py-0.2 text-[9px] font-black text-white">HOST</span>
+                            )}
+                          </div>
+                          <p className={`mt-0.5 leading-relaxed ${msg.message.startsWith('🎁') ? 'font-bold text-zylo-purple' : 'text-zylo-secondary'}`}>
+                            {msg.message}
+                          </p>
+                        </div>
+                      </div>
+
+                      {canModerate && msg.user?.id && (
+                        <div className="relative">
+                          <button
+                            onClick={() => setActiveModMenuMsgId(activeModMenuMsgId === msg.id ? null : msg.id)}
+                            className="opacity-0 group-hover:opacity-100 p-1 text-zylo-muted hover:text-zylo-purple transition cursor-pointer"
+                            title="Moderation options"
+                          >
+                            <Shield className="h-3.5 w-3.5" />
+                          </button>
+
+                          {activeModMenuMsgId === msg.id && (
+                            <ChatModerationMenu
+                              streamId={stream.id}
+                              messageId={msg.id}
+                              targetUser={{
+                                id: msg.user.id,
+                                username: msg.user.username || 'user',
+                                displayName: msg.user.displayName,
+                              }}
+                              isBroadcaster={user?.id === stream.broadcasterId}
+                              onClose={() => setActiveModMenuMsgId(null)}
+                              onMessageDeleted={(mId) => {
+                                setMessages((prev) => prev.filter((m) => m.id !== mId));
+                              }}
+                            />
+                          )}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
             <div className="p-3 border-t border-zylo-border bg-white">
-              <div className="flex items-center gap-2 rounded-2xl border border-zylo-border bg-zylo-warm p-1.5 pl-3">
-                <input
-                  value={chatText}
-                  onChange={(e) => setChatText(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                  disabled={!isLive}
-                  placeholder={isLive ? 'Send a message...' : 'Chat disabled until stream goes live'}
-                  className="min-w-0 flex-1 bg-transparent text-xs text-zylo-text outline-none placeholder:text-zylo-muted disabled:cursor-not-allowed disabled:opacity-60"
-                />
-                <button
-                  onClick={handleSendMessage}
-                  disabled={!isLive}
-                  className="rounded-xl bg-zylo-purple p-2.5 text-white transition hover:bg-zylo-purple-hover disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Send className="h-3.5 w-3.5" />
-                </button>
-              </div>
+              {stream.enableChat !== false ? (
+                <div className="flex items-center gap-2 rounded-2xl border border-zylo-border bg-zylo-warm p-1.5 pl-3">
+                  <input
+                    value={chatText}
+                    onChange={(e) => setChatText(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                    disabled={!isLive || isMutedOrBanned}
+                    placeholder={
+                      isMutedOrBanned
+                        ? 'You are muted/banned on this stream'
+                        : isLive
+                        ? 'Send a message...'
+                        : 'Chat disabled until stream goes live'
+                    }
+                    className="min-w-0 flex-1 bg-transparent text-xs text-zylo-text outline-none placeholder:text-zylo-muted disabled:cursor-not-allowed disabled:opacity-60"
+                  />
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={!isLive || isMutedOrBanned}
+                    className="rounded-xl bg-zylo-purple p-2.5 text-white transition hover:bg-zylo-purple-hover disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="p-3 text-center text-xs font-bold text-zylo-muted bg-zylo-warm/60 rounded-2xl border border-zylo-border">
+                  Chat has been disabled by broadcaster for this stream.
+                </div>
+              )}
             </div>
           </>
         ) : (

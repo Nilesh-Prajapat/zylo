@@ -40,9 +40,11 @@ export function GiftNotificationTile({ streamId }: { streamId: string }) {
     };
 
     socketClient.on('gift:sent', handleGiftSent);
+    socketClient.on('gift:received', handleGiftSent);
 
     return () => {
       socketClient.off('gift:sent', handleGiftSent);
+      socketClient.off('gift:received', handleGiftSent);
     };
   }, [streamId]);
 

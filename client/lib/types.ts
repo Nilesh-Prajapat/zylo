@@ -63,6 +63,8 @@ export interface Stream {
   visibility?: 'PUBLIC' | 'UNLISTED' | 'PRIVATE' | string;
   category?: Category | null;
   language?: string | null;
+  enableChat?: boolean;
+  enableGifts?: boolean;
   allowReplay?: boolean;
   replayUrl?: string | null;
   recordingStatus?: 'NOT_STARTED' | 'RECORDING' | 'PROCESSING' | 'READY' | 'FAILED' | string;

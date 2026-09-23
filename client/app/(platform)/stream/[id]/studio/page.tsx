@@ -25,6 +25,9 @@ import {
   Globe,
   EyeOff,
   Lock,
+  Shield,
+  MessageSquare,
+  Gem,
 } from 'lucide-react';
 import { Stream, ChatMessage } from '@/lib/types';
 import { streamsApi } from '@/lib/api';
@@ -32,6 +35,8 @@ import { socketClient } from '@/lib/socket';
 import { Room, createLocalTracks, LocalVideoTrack, LocalAudioTrack } from 'livekit-client';
 import { useAuth } from '@/lib/auth';
 import { Avatar } from '@/components/shared/Avatar';
+import { GiftNotificationTile } from '@/components/gifts/GiftNotificationTile';
+import { ChatModerationMenu } from '@/components/stream/ChatModerationMenu';
 
 export default function StreamStudioPage() {
   const params = useParams();
@@ -202,6 +207,8 @@ export default function StreamStudioPage() {
     return () => clearInterval(interval);
   }, [stream?.status]);
 
+  const [activeModMenuMsgId, setActiveModMenuMsgId] = useState<string | null>(null);
+
   // 5. Socket.IO Realtime Connections
   useEffect(() => {
     if (!id) return;
@@ -233,10 +240,29 @@ export default function StreamStudioPage() {
       }
     };
 
+    const handleGiftEvent = (data: any) => {
+      const giftMessage: ChatMessage = {
+        id: data.id || `gift-${Date.now()}-${Math.random()}`,
+        streamId: id,
+        userId: data.sender?.id || '',
+        message: `🎁 ${data.senderName || data.sender?.displayName || 'Viewer'} sent ${data.giftName || 'Gift'} (${data.giftEmoji || '🎁'} x${data.quantity || 1})!`,
+        createdAt: data.createdAt || new Date().toISOString(),
+        user: {
+          id: data.sender?.id || '',
+          username: data.sender?.username || data.senderName || 'Viewer',
+          displayName: data.sender?.displayName || data.senderName || 'Viewer',
+          avatarUrl: data.sender?.avatarUrl || null,
+        },
+      };
+      setMessages((prev) => [...prev, giftMessage]);
+    };
+
     socketClient.on('chat:message', handleMessage);
     socketClient.on('chat:deleted', handleChatDeleted);
     socketClient.on('stream:viewer_count', handleViewerCount);
     socketClient.on('stream:status_changed', handleStatusChanged);
+    socketClient.on('gift:sent', handleGiftEvent);
+    socketClient.on('gift:received', handleGiftEvent);
 
     return () => {
       socketClient.leaveStream(id);
@@ -244,6 +270,8 @@ export default function StreamStudioPage() {
       socketClient.off('chat:deleted', handleChatDeleted);
       socketClient.off('stream:viewer_count', handleViewerCount);
       socketClient.off('stream:status_changed', handleStatusChanged);
+      socketClient.off('gift:sent', handleGiftEvent);
+      socketClient.off('gift:received', handleGiftEvent);
     };
   }, [id, stream]);
 
@@ -492,6 +520,9 @@ export default function StreamStudioPage() {
 
         {/* Camera Preview Area */}
         <div className="relative aspect-video w-full overflow-hidden rounded-3xl bg-black border border-zylo-border shadow-xl">
+          {/* Top-Right Realtime Gift Notification Overlay Tile */}
+          <GiftNotificationTile streamId={stream.id} />
+
           <video
             ref={videoRef}
             autoPlay
@@ -642,26 +673,56 @@ export default function StreamStudioPage() {
             </div>
           )}
 
-          {messages.map((msg, idx) => (
-            <div key={msg.id || idx} className="flex items-start justify-between gap-2 text-xs group">
-              <div className="flex items-start gap-2 min-w-0 flex-1">
-                <Avatar src={msg.user?.avatarUrl} size="h-7 w-7" />
-                <div className="min-w-0 flex-1">
-                  <span className="font-extrabold text-zylo-text">{msg.user?.displayName || msg.user?.username || 'User'}</span>
-                  <p className="mt-0.5 leading-relaxed text-zylo-secondary">{msg.message}</p>
+          {messages.map((msg, idx) => {
+            const isSelfMessage = msg.user?.id === user?.id;
+            return (
+              <div key={msg.id || idx} className="relative flex items-start justify-between gap-2 text-xs group">
+                <div className="flex items-start gap-2 min-w-0 flex-1">
+                  <Avatar src={msg.user?.avatarUrl} size="h-7 w-7" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-extrabold text-zylo-text">{msg.user?.displayName || msg.user?.username || 'User'}</span>
+                      {msg.user?.id === stream.broadcasterId && (
+                        <span className="rounded bg-zylo-purple px-1 py-0.2 text-[9px] font-black text-white">HOST</span>
+                      )}
+                    </div>
+                    <p className={`mt-0.5 leading-relaxed ${msg.message.startsWith('🎁') ? 'font-bold text-zylo-purple' : 'text-zylo-secondary'}`}>
+                      {msg.message}
+                    </p>
+                  </div>
                 </div>
+
+                {isBroadcaster && !isSelfMessage && msg.user?.id && (
+                  <div className="relative">
+                    <button
+                      onClick={() => setActiveModMenuMsgId(activeModMenuMsgId === msg.id ? null : msg.id)}
+                      className="opacity-0 group-hover:opacity-100 p-1 text-zylo-muted hover:text-zylo-purple transition cursor-pointer"
+                      title="Moderation options"
+                    >
+                      <Shield className="h-3.5 w-3.5" />
+                    </button>
+
+                    {activeModMenuMsgId === msg.id && (
+                      <ChatModerationMenu
+                        streamId={stream.id}
+                        messageId={msg.id}
+                        targetUser={{
+                          id: msg.user.id,
+                          username: msg.user.username || 'user',
+                          displayName: msg.user.displayName,
+                        }}
+                        isBroadcaster={isBroadcaster}
+                        onClose={() => setActiveModMenuMsgId(null)}
+                        onMessageDeleted={(mId) => {
+                          setMessages((prev) => prev.filter((m) => m.id !== mId));
+                        }}
+                      />
+                    )}
+                  </div>
+                )}
               </div>
-              {isBroadcaster && (
-                <button
-                  onClick={() => handleDeleteChatMessage(msg.id)}
-                  className="opacity-0 group-hover:opacity-100 p-1 text-zylo-muted hover:text-red-600 transition"
-                  title="Delete message"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Broadcaster Chat Input */}

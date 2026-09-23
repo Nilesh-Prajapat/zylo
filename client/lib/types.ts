@@ -61,6 +61,8 @@ export interface Stream {
   vibe?: string | null;
   mediaPath?: string | null;
   visibility?: 'PUBLIC' | 'UNLISTED' | 'PRIVATE' | string;
+  category?: Category | null;
+  language?: string | null;
   allowReplay?: boolean;
   replayUrl?: string | null;
   recordingStatus?: 'NOT_STARTED' | 'RECORDING' | 'PROCESSING' | 'READY' | 'FAILED' | string;

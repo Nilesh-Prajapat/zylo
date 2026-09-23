@@ -7,6 +7,7 @@ export type SocketCallback<T> = (data: T) => void;
 class RealtimeSocketClient {
   private socket: Socket | null = null;
   private listeners: Map<string, Set<SocketCallback<any>>> = new Map();
+  private currentStreamId: string | null = null;
 
   public connect() {
     if (this.socket) {
@@ -30,6 +31,9 @@ class RealtimeSocketClient {
 
     this.socket.on('connect', () => {
       console.log('[Socket] Connected to realtime server:', this.socket?.id);
+      if (this.currentStreamId) {
+        this.socket?.emit('stream:join', { streamId: this.currentStreamId });
+      }
     });
 
     this.socket.on('disconnect', (reason) => {
@@ -52,14 +56,19 @@ class RealtimeSocketClient {
       this.socket = null;
     }
     this.listeners.clear();
+    this.currentStreamId = null;
   }
 
   public joinStream(streamId: string) {
+    this.currentStreamId = streamId;
     if (!this.socket) this.connect();
     this.socket?.emit('stream:join', { streamId });
   }
 
   public leaveStream(streamId: string) {
+    if (this.currentStreamId === streamId) {
+      this.currentStreamId = null;
+    }
     this.socket?.emit('stream:leave', { streamId });
   }
 

@@ -348,12 +348,21 @@ export default function StudioDashboardPage() {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      <Link
-                        href={`/stream/${stream.id}/studio`}
-                        className="rounded-xl bg-zylo-warm border border-zylo-border px-3 py-1.5 text-xs font-extrabold text-zylo-text hover:bg-zylo-soft transition"
-                      >
-                        Studio
-                      </Link>
+                      {stream.status === 'ENDED' ? (
+                        <Link
+                          href="/studio/streams"
+                          className="rounded-xl bg-zylo-warm border border-zylo-border px-3 py-1.5 text-xs font-extrabold text-zylo-secondary hover:bg-zylo-soft transition"
+                        >
+                          [ STATS ]
+                        </Link>
+                      ) : (
+                        <Link
+                          href={`/stream/${stream.id}/studio`}
+                          className="rounded-xl bg-zylo-warm border border-zylo-border px-3 py-1.5 text-xs font-extrabold text-zylo-text hover:bg-zylo-soft transition"
+                        >
+                          Studio
+                        </Link>
+                      )}
                     </div>
                   </div>
                 ))

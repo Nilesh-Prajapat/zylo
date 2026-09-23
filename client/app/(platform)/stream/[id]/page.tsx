@@ -13,6 +13,8 @@ import {
   Loader2,
   AlertCircle,
   Radio,
+  Maximize,
+  Minimize,
 } from 'lucide-react';
 import { Avatar } from '@/components/shared/Avatar';
 import { Stream, ChatMessage } from '@/lib/types';
@@ -94,9 +96,30 @@ export default function StreamViewerPage() {
   const [videoCurrentTime, setVideoCurrentTime] = useState(0);
 
   const [subscribedVideoTrack, setSubscribedVideoTrack] = useState<RemoteTrack | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [mediaConnecting, setMediaConnecting] = useState(false);
+
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const replayVideoRef = useRef<HTMLVideoElement | null>(null);
   const roomRef = useRef<Room | null>(null);
+
+  const toggleFullscreen = () => {
+    if (!containerRef.current) return;
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+    } else {
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+    }
+  };
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
 
   // 1. Load Stream Info & Chat History
   useEffect(() => {
@@ -150,7 +173,27 @@ export default function StreamViewerPage() {
           }
         });
 
+        room.on(RoomEvent.Reconnecting, () => setMediaConnecting(true));
+        room.on(RoomEvent.Reconnected, () => setMediaConnecting(false));
+
         await room.connect(tokenRes.livekitUrl, tokenRes.token);
+
+        // Attach existing remote participants/tracks if viewer joined after broadcaster published
+        room.remoteParticipants.forEach((participant) => {
+          participant.trackPublications.forEach((pub) => {
+            if (pub.track && pub.isSubscribed) {
+              if (pub.track.kind === Track.Kind.Video) {
+                setSubscribedVideoTrack(pub.track as RemoteTrack);
+                if (videoRef.current) {
+                  pub.track.attach(videoRef.current);
+                }
+              } else if (pub.track.kind === Track.Kind.Audio) {
+                const el = pub.track.attach();
+                document.body.appendChild(el);
+              }
+            }
+          });
+        });
       } catch (err) {
         console.error('Failed to connect LiveKit viewer room', err);
       }
@@ -251,7 +294,7 @@ export default function StreamViewerPage() {
       {/* Main Video & Details Viewport */}
       <div className="flex-1 flex flex-col min-w-0 p-4 lg:p-6">
         {/* Media Player Container */}
-        <div className="relative aspect-video w-full overflow-hidden rounded-3xl bg-black border border-zylo-border shadow-xl">
+        <div ref={containerRef} className="relative aspect-video w-full overflow-hidden rounded-3xl bg-black border border-zylo-border shadow-xl">
           {/* Top-Right Realtime Gift Notification Overlay Tile */}
           <GiftNotificationTile streamId={stream.id} />
 
@@ -339,19 +382,34 @@ export default function StreamViewerPage() {
             <span className="flex items-center gap-1.5 rounded-lg bg-black/60 px-3 py-1 text-xs font-bold text-white backdrop-blur border border-white/10">
               <Users className="h-3.5 w-3.5" /> {isLive ? formatViewers(viewerCount) : `${stream.replayViews || 0} views`}
             </span>
+
+            {mediaConnecting && (
+              <span className="rounded-lg bg-amber-500/80 px-2.5 py-1 text-xs font-extrabold text-black backdrop-blur">
+                Reconnecting media...
+              </span>
+            )}
           </div>
 
-          {/* Video Controls Bottom Bar for Live Mute */}
-          {isLive && (
-            <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex items-center justify-between z-20">
+          {/* Video Controls Bottom Bar for Mute & Fullscreen */}
+          <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex items-center justify-between z-20">
+            {isLive ? (
               <button
                 onClick={() => setIsMuted(!isMuted)}
-                className="rounded-lg bg-white/20 p-2 text-white hover:bg-white/30 backdrop-blur transition"
+                className="rounded-lg bg-white/20 p-2 text-white hover:bg-white/30 backdrop-blur transition cursor-pointer"
+                title={isMuted ? 'Unmute' : 'Mute'}
               >
                 {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
               </button>
-            </div>
-          )}
+            ) : <div />}
+
+            <button
+              onClick={toggleFullscreen}
+              className="rounded-lg bg-white/20 p-2 text-white hover:bg-white/30 backdrop-blur transition cursor-pointer"
+              title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+            >
+              {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
+            </button>
+          </div>
         </div>
 
         {/* Stream Details & Action Bar */}

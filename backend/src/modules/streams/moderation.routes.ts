@@ -183,6 +183,38 @@ router.post('/:id/moderation/unban', requireAuth, validate(unbanSchema), asyncHa
   sendSuccess(res, { unbanned: true });
 }));
 
+const removeSchema = z.object({
+  userId: z.string(),
+  reason: z.string().max(500).optional(),
+});
+
+// ─── POST /api/v1/streams/:id/moderation/remove ───────────────
+router.post('/:id/moderation/remove', requireAuth, validate(removeSchema), asyncHandler(async (req, res) => {
+  const streamId = req.params.id;
+  const moderatorId = req.user!.id;
+  const { userId, reason } = req.body;
+
+  const stream = await verifyModeratorPermission(streamId, moderatorId, req.user!.role);
+
+  if (userId === moderatorId || userId === stream.broadcasterId) {
+    throw AppError.badRequest('Cannot remove yourself or the broadcaster');
+  }
+
+  // Emit disconnect/remove notification event to user
+  emitToUser(userId, 'moderation:removed', {
+    streamId,
+    reason: reason || 'Removed from stream by moderator',
+  });
+
+  emitToStream(streamId, 'moderation:user_updated', {
+    streamId,
+    userId,
+    type: 'REMOVE',
+  });
+
+  sendSuccess(res, { removed: true });
+}));
+
 // ─── GET /api/v1/streams/:id/moderation ───────────────────────
 router.get('/:id/moderation', requireAuth, asyncHandler(async (req, res) => {
   const streamId = req.params.id;

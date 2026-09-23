@@ -506,13 +506,21 @@ giftsRouter.post('/streams/:id', requireAuth, validate(sendGiftSchema), asyncHan
   });
 
   // Emit realtime gift event to stream chat/room
-  emitToStream(stream.id, 'gift:sent', {
+  const giftPayload = {
+    id: transaction.id,
+    gift: { id: gift.id, name: gift.name, emoji: gift.emoji, price: gift.price },
+    sender: { id: senderId, username: req.user!.username, displayName: senderName, avatarUrl: req.user!.avatarUrl },
+    receiverId: stream.broadcasterId,
     senderName,
     giftName: gift.name,
     giftEmoji: gift.emoji,
     quantity,
     totalPrice,
-  });
+    createdAt: transaction.createdAt.toISOString(),
+  };
+
+  emitToStream(stream.id, 'gift:received', giftPayload);
+  emitToStream(stream.id, 'gift:sent', giftPayload);
 
   sendSuccess(res, { transaction }, 201);
 }));

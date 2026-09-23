@@ -89,6 +89,29 @@ export function setupSocketIO(httpServer: HttpServer): Server {
         const viewerId = socket.userId || `guest:${socket.id}`;
         const isBroadcaster = socket.userId === stream.broadcasterId;
 
+        // Check if user is banned from this stream
+        if (socket.userId) {
+          const activeBan = await prisma.streamModeration.findFirst({
+            where: {
+              streamId,
+              userId: socket.userId,
+              revokedAt: null,
+              type: { in: ['TEMPORARY_BAN', 'PERMANENT_BAN'] },
+              OR: [
+                { expiresAt: null },
+                { expiresAt: { gt: new Date() } },
+              ],
+            },
+          });
+          if (activeBan) {
+            socket.emit('stream:error', {
+              code: 'BANNED',
+              message: 'You are banned from joining this stream.',
+            });
+            return;
+          }
+        }
+
         if (!isBroadcaster) {
           // Add to viewer set
           await redis.sadd(RedisKeys.streamViewers(streamId), viewerId);

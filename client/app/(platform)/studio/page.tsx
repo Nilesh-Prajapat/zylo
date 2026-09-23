@@ -86,7 +86,7 @@ export default function StudioDashboardPage() {
   const [enableChat, setEnableChat] = useState(true);
   const [enableGifts, setEnableGifts] = useState(true);
   const [saveRecording, setSaveRecording] = useState(true);
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<number>(1);
   const [modalError, setModalError] = useState<string | null>(null);
 
   const resetFlow = () => {
@@ -382,295 +382,353 @@ export default function StudioDashboardPage() {
         </div>
       </div>
 
-      {/* Start Streaming Modal: Entry Choice & Setup */}
+      {/* Start Streaming Modal: Fixed-size Dialog with Multi-step Form */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="w-full max-w-lg rounded-3xl border border-zylo-border bg-white p-6 shadow-2xl space-y-5 my-auto">
-            {/* Header & Stepper */}
-            <div className="border-b border-zylo-border pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="w-full max-w-lg h-[620px] max-h-[85vh] rounded-3xl border border-zylo-border bg-white shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+            {/* Fixed Header */}
+            <div className="shrink-0 border-b border-zylo-border px-6 py-4 bg-white">
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] font-black text-zylo-purple uppercase">Broadcaster Setup</span>
+                  <span className="text-[10px] font-black text-zylo-purple uppercase tracking-wider">Broadcaster Setup</span>
                   <h2 className="text-lg font-extrabold text-zylo-text">
                     {!entryOption
                       ? 'Start Streaming'
                       : entryOption === 'NOW'
-                      ? 'Go Live Now'
-                      : 'Schedule Live'}
+                      ? `Go Live Now — Step ${step} of 3`
+                      : `Schedule Live — Step ${step} of 4`}
                   </h2>
                 </div>
                 <button
-                  onClick={() => setShowModal(false)}
-                  className="rounded-full bg-zylo-warm p-1.5 text-zylo-muted hover:text-zylo-text transition"
+                  onClick={() => {
+                    setShowModal(false);
+                    setModalError(null);
+                  }}
+                  className="rounded-full bg-zylo-warm p-1.5 text-zylo-muted hover:text-zylo-text transition cursor-pointer"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
 
-              {/* Stepper Display */}
+              {/* Stepper Progress Indicator */}
               {entryOption && (
-                <div className="mt-3 flex items-center justify-center gap-2 text-xs font-bold text-zylo-secondary">
-                  <span className={`px-2 py-0.5 rounded-full ${step === 1 ? 'bg-zylo-purple text-white' : 'bg-green-100 text-green-700'}`}>
+                <div className="mt-3 flex items-center justify-between text-[11px] font-bold text-zylo-secondary border-t border-zylo-border/60 pt-2.5">
+                  <span className={`px-2.5 py-0.5 rounded-full transition ${step === 1 ? 'bg-zylo-purple text-white shadow-xs' : step > 1 ? 'bg-emerald-100 text-emerald-700' : 'bg-zylo-warm text-zylo-muted'}`}>
                     {step > 1 ? '✓ Details' : '1. Details'}
                   </span>
-                  <span className="text-zylo-muted">───────</span>
-                  {entryOption === 'SCHEDULED' && (
-                    <>
-                      <span className={`px-2 py-0.5 rounded-full ${step === 2 ? 'bg-zylo-purple text-white' : 'bg-zylo-warm text-zylo-muted'}`}>
-                        2. Schedule
-                      </span>
-                      <span className="text-zylo-muted">───────</span>
-                    </>
-                  )}
-                  <span className="px-2 py-0.5 rounded-full bg-zylo-warm text-zylo-muted">
-                    Studio
+                  <span className="text-zylo-muted">›</span>
+                  <span className={`px-2.5 py-0.5 rounded-full transition ${step === 2 ? 'bg-zylo-purple text-white shadow-xs' : step > 2 ? 'bg-emerald-100 text-emerald-700' : 'bg-zylo-warm text-zylo-muted'}`}>
+                    {step > 2 ? '✓ Media' : '2. Media'}
                   </span>
+                  <span className="text-zylo-muted">›</span>
+
+                  {entryOption === 'SCHEDULED' ? (
+                    <>
+                      <span className={`px-2.5 py-0.5 rounded-full transition ${step === 3 ? 'bg-zylo-purple text-white shadow-xs' : step > 3 ? 'bg-emerald-100 text-emerald-700' : 'bg-zylo-warm text-zylo-muted'}`}>
+                        {step > 3 ? '✓ Schedule' : '3. Schedule'}
+                      </span>
+                      <span className="text-zylo-muted">›</span>
+                      <span className={`px-2.5 py-0.5 rounded-full transition ${step === 4 ? 'bg-zylo-purple text-white shadow-xs' : 'bg-zylo-warm text-zylo-muted'}`}>
+                        4. Settings
+                      </span>
+                    </>
+                  ) : (
+                    <span className={`px-2.5 py-0.5 rounded-full transition ${step === 3 ? 'bg-zylo-purple text-white shadow-xs' : 'bg-zylo-warm text-zylo-muted'}`}>
+                      3. Settings
+                    </span>
+                  )}
+                  <span className="text-zylo-muted">›</span>
+                  <span className="px-2 py-0.5 rounded-full bg-zylo-warm text-zylo-muted">Studio</span>
                 </div>
               )}
             </div>
 
-            {modalError && (
-              <div className="flex items-center gap-2 text-xs font-bold text-red-600 bg-red-50 p-3 rounded-xl border border-red-200">
-                <AlertCircle className="h-4 w-4 shrink-0" />
-                {modalError}
-              </div>
-            )}
-
-            {/* Entry Options Selection */}
-            {!entryOption && (
-              <div className="space-y-4 py-2">
-                <p className="text-xs font-bold text-zylo-secondary text-center">
-                  Choose how you want to configure your broadcast:
-                </p>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEntryOption('NOW');
-                      setStep(1);
-                    }}
-                    className="flex flex-col items-center p-6 rounded-2xl border-2 border-zylo-border bg-zylo-warm hover:border-zylo-purple hover:bg-white transition text-center group cursor-pointer"
-                  >
-                    <div className="h-12 w-12 rounded-2xl bg-[#B8FF3D] flex items-center justify-center mb-3 shadow-xs">
-                      <Radio className="h-6 w-6 text-black" />
-                    </div>
-                    <h3 className="text-sm font-black text-zylo-text group-hover:text-zylo-purple">GO LIVE NOW</h3>
-                    <p className="mt-1 text-[11px] font-semibold text-zylo-secondary leading-snug">
-                      Prepare a stream to broadcast right away in Stream Studio.
-                    </p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEntryOption('SCHEDULED');
-                      setStep(1);
-                    }}
-                    className="flex flex-col items-center p-6 rounded-2xl border-2 border-zylo-border bg-zylo-warm hover:border-zylo-purple hover:bg-white transition text-center group cursor-pointer"
-                  >
-                    <div className="h-12 w-12 rounded-2xl bg-zylo-purple flex items-center justify-center mb-3 shadow-xs text-white">
-                      <Calendar className="h-6 w-6" />
-                    </div>
-                    <h3 className="text-sm font-black text-zylo-text group-hover:text-zylo-purple">SCHEDULE LIVE</h3>
-                    <p className="mt-1 text-[11px] font-semibold text-zylo-secondary leading-snug">
-                      Set a future date and time for your upcoming stream.
-                    </p>
-                  </button>
+            {/* Scrollable Content Container (Fixed Height flex-1) */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+              {modalError && (
+                <div className="flex items-center gap-2 text-xs font-bold text-red-600 bg-red-50 p-3 rounded-xl border border-red-200">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  {modalError}
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* STEP 1: DETAILS (FOR BOTH FLOWS) */}
-            {entryOption && step === 1 && (
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs font-extrabold text-zylo-text block mb-1">
-                    Stream Title <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g. Building Zylo Live & Q&A 🚀"
-                    className="h-11 w-full rounded-2xl border border-zylo-border bg-zylo-warm px-4 text-xs font-semibold outline-none focus:border-zylo-purple transition"
-                  />
-                </div>
+              {/* ENTRY SELECTION */}
+              {!entryOption && (
+                <div className="space-y-4 py-2">
+                  <p className="text-xs font-bold text-zylo-secondary text-center">
+                    Choose how you want to configure your broadcast:
+                  </p>
 
-                <div>
-                  <label className="text-xs font-extrabold text-zylo-text block mb-1">Description</label>
-                  <textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    rows={2}
-                    placeholder="Describe your broadcast..."
-                    className="w-full rounded-2xl border border-zylo-border bg-zylo-warm p-3 text-xs outline-none focus:border-zylo-purple transition"
-                  />
-                </div>
-
-                {/* Thumbnail Uploader Required/Supported for both GO LIVE NOW & SCHEDULE LIVE */}
-                <ThumbnailUploader value={thumbnailUrl} onChange={setThumbnailUrl} />
-
-                <div>
-                  <label className="text-xs font-extrabold text-zylo-text block mb-2">Category</label>
-                  <div className="flex flex-wrap gap-2">
-                    {CATEGORIES.map((cat) => (
-                      <button
-                        key={cat}
-                        type="button"
-                        onClick={() => setCategory(cat)}
-                        className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
-                          category === cat
-                            ? 'bg-zylo-purple text-white'
-                            : 'border border-zylo-border bg-zylo-warm text-zylo-secondary hover:bg-zylo-soft'
-                        }`}
-                      >
-                        {cat}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-extrabold text-zylo-text block mb-1.5">Language</label>
-                    <CustomSelect options={LANGUAGES} value={language} onChange={setLanguage} />
-                  </div>
-                  <div>
-                    <label className="text-xs font-extrabold text-zylo-text block mb-1.5">Visibility</label>
-                    <CustomSelect
-                      options={VISIBILITY_OPTIONS}
-                      value={visibility}
-                      onChange={(v) => setVisibility(v as 'PUBLIC' | 'UNLISTED' | 'PRIVATE')}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2 pt-2 border-t border-zylo-border">
-                  <CustomToggle
-                    checked={enableChat}
-                    onChange={setEnableChat}
-                    label="Enable Chat"
-                    description="Allow viewers to send messages"
-                    icon={MessageSquare}
-                  />
-                  <CustomToggle
-                    checked={enableGifts}
-                    onChange={setEnableGifts}
-                    label="Enable Gifts"
-                    description="Allow viewers to send virtual gifts"
-                    icon={Gem}
-                  />
-                </div>
-
-                <div className="flex gap-3 pt-3 border-t border-zylo-border">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEntryOption(null);
-                      setStep(1);
-                    }}
-                    className="rounded-2xl border border-zylo-border bg-zylo-warm px-5 py-3 text-xs font-bold text-zylo-text hover:bg-zylo-soft transition"
-                  >
-                    ← Option
-                  </button>
-
-                  {entryOption === 'NOW' ? (
-                    <button
-                      type="button"
-                      onClick={handleCreateStream}
-                      disabled={createStreamMutation.isPending || uploading}
-                      className="flex-1 rounded-2xl bg-[#B8FF3D] py-3 text-xs font-black text-black hover:bg-[#a6fa26] transition shadow-md disabled:opacity-50 cursor-pointer"
-                    >
-                      {createStreamMutation.isPending ? 'Preparing Stream Studio...' : 'Continue to Stream Studio →'}
-                    </button>
-                  ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <button
                       type="button"
                       onClick={() => {
-                        if (!title.trim()) {
-                          setModalError('Stream title is required.');
-                          return;
-                        }
+                        setEntryOption('NOW');
+                        setStep(1);
                         setModalError(null);
-                        setStep(2);
                       }}
-                      className="flex-1 rounded-2xl bg-zylo-purple py-3 text-xs font-extrabold text-white hover:bg-zylo-purple-hover transition shadow-md cursor-pointer"
+                      className="flex flex-col items-center p-6 rounded-2xl border-2 border-zylo-border bg-zylo-warm hover:border-zylo-purple hover:bg-white transition text-center group cursor-pointer"
                     >
-                      Continue to Schedule →
+                      <div className="h-12 w-12 rounded-2xl bg-[#B8FF3D] flex items-center justify-center mb-3 shadow-xs">
+                        <Radio className="h-6 w-6 text-black" />
+                      </div>
+                      <h3 className="text-sm font-black text-zylo-text group-hover:text-zylo-purple">GO LIVE NOW</h3>
+                      <p className="mt-1 text-[11px] font-semibold text-zylo-secondary leading-snug">
+                        Prepare a stream to broadcast right away in Stream Studio.
+                      </p>
                     </button>
-                  )}
-                </div>
-              </div>
-            )}
 
-            {/* STEP 2: SCHEDULE (ONLY FOR SCHEDULE LIVE) */}
-            {entryOption === 'SCHEDULED' && step === 2 && (
-              <div className="space-y-5 py-2">
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-4">
-                  <div className="flex items-center gap-2 text-amber-900 font-extrabold text-xs">
-                    <Calendar className="h-4 w-4 text-amber-600" />
-                    Select Date & Time for Scheduled Stream
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEntryOption('SCHEDULED');
+                        setStep(1);
+                        setModalError(null);
+                      }}
+                      className="flex flex-col items-center p-6 rounded-2xl border-2 border-zylo-border bg-zylo-warm hover:border-zylo-purple hover:bg-white transition text-center group cursor-pointer"
+                    >
+                      <div className="h-12 w-12 rounded-2xl bg-zylo-purple flex items-center justify-center mb-3 shadow-xs text-white">
+                        <Calendar className="h-6 w-6" />
+                      </div>
+                      <h3 className="text-sm font-black text-zylo-text group-hover:text-zylo-purple">SCHEDULE LIVE</h3>
+                      <p className="mt-1 text-[11px] font-semibold text-zylo-secondary leading-snug">
+                        Set a future date and time for your upcoming stream.
+                      </p>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 1: DETAILS (Title & Description) */}
+              {entryOption && step === 1 && (
+                <div className="space-y-4">
+                  <div className="rounded-2xl bg-zylo-warm/50 p-4 border border-zylo-border/60">
+                    <h4 className="text-xs font-extrabold text-zylo-text mb-1">Step 1: Broadcast Details</h4>
+                    <p className="text-[11px] font-medium text-zylo-muted">
+                      Give your stream a catchy title and description so viewers know what to expect.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-extrabold text-zylo-text block mb-1">
+                      Stream Title <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      value={title}
+                      onChange={(e) => {
+                        setTitle(e.target.value);
+                        if (modalError) setModalError(null);
+                      }}
+                      placeholder="e.g. Building Zylo Live & Q&A 🚀"
+                      className="h-11 w-full rounded-2xl border border-zylo-border bg-zylo-warm px-4 text-xs font-semibold outline-none focus:border-zylo-purple transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-extrabold text-zylo-text block mb-1">Description</label>
+                    <textarea
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      rows={4}
+                      placeholder="Tell viewers what your broadcast is about..."
+                      className="w-full rounded-2xl border border-zylo-border bg-zylo-warm p-3 text-xs outline-none focus:border-zylo-purple transition resize-none"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 2: MEDIA & CATEGORY */}
+              {entryOption && step === 2 && (
+                <div className="space-y-4">
+                  <div className="rounded-2xl bg-zylo-warm/50 p-4 border border-zylo-border/60">
+                    <h4 className="text-xs font-extrabold text-zylo-text mb-1">Step 2: Media & Category</h4>
+                    <p className="text-[11px] font-medium text-zylo-muted">
+                      Upload an eye-catching thumbnail image and choose a category for discovery.
+                    </p>
+                  </div>
+
+                  {/* Thumbnail Uploader */}
+                  <ThumbnailUploader value={thumbnailUrl} onChange={setThumbnailUrl} />
+
+                  <div>
+                    <label className="text-xs font-extrabold text-zylo-text block mb-2">Category</label>
+                    <div className="flex flex-wrap gap-2">
+                      {CATEGORIES.map((cat) => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setCategory(cat)}
+                          className={`rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
+                            category === cat
+                              ? 'bg-zylo-purple text-white shadow-xs'
+                              : 'border border-zylo-border bg-zylo-warm text-zylo-secondary hover:bg-zylo-soft'
+                          }`}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 3 (FOR SCHEDULED): SCHEDULE DATE & TIME */}
+              {entryOption === 'SCHEDULED' && step === 3 && (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-4">
+                    <div className="flex items-center gap-2 text-amber-900 font-extrabold text-xs">
+                      <Calendar className="h-4 w-4 text-amber-600" />
+                      Select Scheduled Date & Time
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-extrabold text-amber-900 block mb-1">
+                          Scheduled Date <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="date"
+                          value={scheduledDate}
+                          min={new Date().toISOString().split('T')[0]}
+                          onChange={(e) => {
+                            setScheduledDate(e.target.value);
+                            if (modalError) setModalError(null);
+                          }}
+                          className="h-10 w-full rounded-xl border border-amber-300 bg-white px-3 text-xs font-bold text-amber-900 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-extrabold text-amber-900 block mb-1">
+                          Start Time <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="time"
+                          value={scheduledTime}
+                          onChange={(e) => {
+                            setScheduledTime(e.target.value);
+                            if (modalError) setModalError(null);
+                          }}
+                          className="h-10 w-full rounded-xl border border-amber-300 bg-white px-3 text-xs font-bold text-amber-900 outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    {scheduledDate && scheduledTime && (
+                      <div className="p-3 rounded-xl bg-white border border-amber-200 text-center shadow-2xs">
+                        <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block">Scheduled for</span>
+                        <span className="text-xs font-black text-amber-900">
+                          {new Date(`${scheduledDate}T${scheduledTime}`).toLocaleString(undefined, {
+                            month: 'long',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* FINAL STEP (STEP 3 FOR NOW, STEP 4 FOR SCHEDULED): SETTINGS & PREFERENCES */}
+              {entryOption && ((entryOption === 'NOW' && step === 3) || (entryOption === 'SCHEDULED' && step === 4)) && (
+                <div className="space-y-4">
+                  <div className="rounded-2xl bg-zylo-warm/50 p-4 border border-zylo-border/60">
+                    <h4 className="text-xs font-extrabold text-zylo-text mb-1">Final Step: Stream Settings</h4>
+                    <p className="text-[11px] font-medium text-zylo-muted">
+                      Configure visibility, language, chat, and gift interactions before entering studio.
+                    </p>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="text-xs font-extrabold text-amber-900 block mb-1">
-                        Scheduled Date <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="date"
-                        value={scheduledDate}
-                        min={new Date().toISOString().split('T')[0]}
-                        onChange={(e) => setScheduledDate(e.target.value)}
-                        className="h-10 w-full rounded-xl border border-amber-300 bg-white px-3 text-xs font-bold text-amber-900 outline-none"
-                      />
+                      <label className="text-xs font-extrabold text-zylo-text block mb-1.5">Language</label>
+                      <CustomSelect options={LANGUAGES} value={language} onChange={setLanguage} />
                     </div>
                     <div>
-                      <label className="text-xs font-extrabold text-amber-900 block mb-1">
-                        Start Time <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="time"
-                        value={scheduledTime}
-                        onChange={(e) => setScheduledTime(e.target.value)}
-                        className="h-10 w-full rounded-xl border border-amber-300 bg-white px-3 text-xs font-bold text-amber-900 outline-none"
+                      <label className="text-xs font-extrabold text-zylo-text block mb-1.5">Visibility</label>
+                      <CustomSelect
+                        options={VISIBILITY_OPTIONS}
+                        value={visibility}
+                        onChange={(v) => setVisibility(v as 'PUBLIC' | 'UNLISTED' | 'PRIVATE')}
                       />
                     </div>
                   </div>
 
-                  {scheduledDate && scheduledTime && (
-                    <div className="p-3 rounded-xl bg-white border border-amber-200 text-center">
-                      <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block">Scheduled for</span>
-                      <span className="text-xs font-black text-amber-900">
-                        {new Date(`${scheduledDate}T${scheduledTime}`).toLocaleString(undefined, {
-                          month: 'long',
-                          day: 'numeric',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </span>
-                    </div>
-                  )}
+                  <div className="space-y-2 pt-2 border-t border-zylo-border">
+                    <CustomToggle
+                      checked={enableChat}
+                      onChange={setEnableChat}
+                      label="Enable Chat"
+                      description="Allow viewers to send realtime chat messages"
+                      icon={MessageSquare}
+                    />
+                    <CustomToggle
+                      checked={enableGifts}
+                      onChange={setEnableGifts}
+                      label="Enable Gifts"
+                      description="Allow viewers to send animated gifts"
+                      icon={Gem}
+                    />
+                  </div>
                 </div>
+              )}
+            </div>
 
-                <div className="flex gap-3 pt-2 border-t border-zylo-border">
+            {/* Fixed Footer Navigation */}
+            {entryOption && (
+              <div className="shrink-0 border-t border-zylo-border bg-white px-6 py-4 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (step === 1) {
+                      setEntryOption(null);
+                      setStep(1);
+                    } else {
+                      setStep(step - 1);
+                    }
+                    setModalError(null);
+                  }}
+                  className="rounded-2xl border border-zylo-border bg-zylo-warm px-4 py-2.5 text-xs font-bold text-zylo-text hover:bg-zylo-soft transition cursor-pointer"
+                >
+                  ← {step === 1 ? 'Choose Flow' : 'Back'}
+                </button>
+
+                {/* Next or Finish Button */}
+                {((entryOption === 'NOW' && step < 3) || (entryOption === 'SCHEDULED' && step < 4)) ? (
                   <button
                     type="button"
-                    onClick={() => setStep(1)}
-                    className="rounded-2xl border border-zylo-border bg-zylo-warm px-5 py-3 text-xs font-bold text-zylo-text hover:bg-zylo-soft transition"
+                    onClick={() => {
+                      if (step === 1) {
+                        if (!title.trim()) {
+                          setModalError('Stream title is required.');
+                          return;
+                        }
+                      }
+                      if (entryOption === 'SCHEDULED' && step === 3) {
+                        if (!scheduledDate || !scheduledTime) {
+                          setModalError('Please select both scheduled date and time.');
+                          return;
+                        }
+                      }
+                      setModalError(null);
+                      setStep(step + 1);
+                    }}
+                    className="rounded-2xl bg-zylo-purple px-6 py-2.5 text-xs font-extrabold text-white hover:bg-zylo-purple-hover transition shadow-md cursor-pointer"
                   >
-                    ← Back to Details
+                    Next Step →
                   </button>
+                ) : (
                   <button
                     type="button"
                     onClick={handleCreateStream}
                     disabled={createStreamMutation.isPending || uploading}
-                    className="flex-1 rounded-2xl bg-[#B8FF3D] py-3 text-xs font-black text-black hover:bg-[#a6fa26] transition shadow-md disabled:opacity-50 cursor-pointer"
+                    className="flex-1 max-w-xs rounded-2xl bg-[#B8FF3D] py-2.5 text-xs font-black text-black hover:bg-[#a6fa26] transition shadow-md disabled:opacity-50 cursor-pointer"
                   >
                     {createStreamMutation.isPending ? 'Preparing Stream Studio...' : 'Continue to Stream Studio →'}
                   </button>
-                </div>
+                )}
               </div>
             )}
           </div>

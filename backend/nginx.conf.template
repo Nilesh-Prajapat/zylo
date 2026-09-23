@@ -1,6 +1,8 @@
 server {
     listen 80;
-    server_name 3.24.70.199;
+    listen [::]:80;
+
+    server_name api.zylo.rocks;
 
     # Client body size limit for uploads
     client_max_body_size 20M;

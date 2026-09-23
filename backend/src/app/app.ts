@@ -18,6 +18,9 @@ import { swaggerSpec } from './swagger';
 export function createApp(): express.Application {
   const app = express();
 
+  // Trust proxy when behind Nginx
+  app.set('trust proxy', 1);
+
   // Security headers
   app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },

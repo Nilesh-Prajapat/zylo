@@ -1,0 +1,57 @@
+name: Deploy Zylo Backend to AWS EC2
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+
+            echo "=== Navigating to project root ==="
+            cd /var/www/backend
+
+            echo "=== Pre-update safety check: Verifying production .env ==="
+            test -f backend/.env || (echo "ERROR: Production backend/.env missing prior to deploy!" && exit 1)
+
+            echo "=== Fetching latest code from main branch ==="
+            git fetch origin main
+
+            echo "=== Updating repository code ==="
+            git reset --hard origin/main
+
+            echo "=== Post-update safety check: Verifying production .env survives ==="
+            test -f backend/.env || (echo "ERROR: Production backend/.env was removed during git reset!" && exit 1)
+
+            echo "=== Navigating to backend directory ==="
+            cd backend
+
+            echo "=== Installing dependencies ==="
+            npm ci
+
+            echo "=== Building application ==="
+            npm run build
+
+            echo "=== Reloading PM2 process ==="
+            pm2 reload ecosystem.config.cjs --update-env || pm2 start ecosystem.config.cjs
+            pm2 save
+
+            echo "=== Pausing for service warm-up ==="
+            sleep 5
+
+            echo "=== Performing health check ==="
+            curl --fail --max-time 10 http://127.0.0.1:4000/health
+
+            echo "=== Deployment successful ==="

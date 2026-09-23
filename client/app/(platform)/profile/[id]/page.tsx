@@ -121,6 +121,9 @@ export default function ProfilePage() {
       setEditAvatarUrl(uploadRes.url);
       await usersApi.updateProfile({ avatarUrl: uploadRes.url });
       await refreshSession();
+      if (profileId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.profile(profileId) });
+      }
     } catch (err: any) {
       setEditError(err.message || 'Failed to upload avatar');
     } finally {
@@ -139,6 +142,9 @@ export default function ProfilePage() {
       setEditCoverImageUrl(uploadRes.url);
       await usersApi.updateProfile({ coverImageUrl: uploadRes.url });
       await refreshSession();
+      if (profileId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.profile(profileId) });
+      }
     } catch (err: any) {
       setEditError(err.message || 'Failed to upload cover image');
     } finally {

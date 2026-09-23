@@ -12,10 +12,10 @@ const router = Router();
 const updateProfileSchema = z.object({
   displayName: z.string().min(1).max(50).optional(),
   bio: z.string().max(500).optional(),
-  avatarUrl: z.string().url().optional().nullable(),
-  coverImageUrl: z.string().url().optional().nullable(),
+  avatarUrl: z.string().min(1).optional().nullable(),
+  coverImageUrl: z.string().min(1).optional().nullable(),
   location: z.string().max(100).optional(),
-  website: z.string().url().max(200).optional().nullable(),
+  website: z.string().max(200).optional().nullable(),
 });
 
 const switchRoleSchema = z.object({
@@ -187,11 +187,19 @@ const handleUpdateProfile = asyncHandler(async (req, res) => {
       ...(displayName && { displayName }),
       ...(avatarUrl !== undefined && { avatarUrl }),
       profile: {
-        update: {
-          ...(bio !== undefined && { bio }),
-          ...(coverImageUrl !== undefined && { coverImageUrl }),
-          ...(location !== undefined && { location }),
-          ...(website !== undefined && { website }),
+        upsert: {
+          create: {
+            bio: bio || null,
+            coverImageUrl: coverImageUrl || null,
+            location: location || null,
+            website: website || null,
+          },
+          update: {
+            ...(bio !== undefined && { bio }),
+            ...(coverImageUrl !== undefined && { coverImageUrl }),
+            ...(location !== undefined && { location }),
+            ...(website !== undefined && { website }),
+          },
         },
       },
     },

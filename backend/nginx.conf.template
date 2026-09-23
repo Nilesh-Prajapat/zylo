@@ -5,7 +5,7 @@ server {
     server_name api.zylo.rocks;
 
     # Client body size limit for uploads
-    client_max_body_size 20M;
+    client_max_body_size 50M;
 
     # Socket.IO WebSocket proxying
     location /socket.io/ {

@@ -4,6 +4,9 @@ import { prisma } from '../../infrastructure/database/prisma';
 import { requireAuth, requireRole, asyncHandler, sendSuccess, validate } from '../../common/middleware';
 import { UserRole } from '@prisma/client';
 
+import { getRedis } from '../../infrastructure/redis/redis';
+import { RedisKeys, RedisTTL } from '../../infrastructure/redis/keys';
+
 const router = Router();
 
 const categorySchema = z.object({
@@ -15,6 +18,14 @@ const categorySchema = z.object({
 
 // GET /api/v1/categories
 router.get('/', asyncHandler(async (req, res) => {
+  const redis = getRedis();
+  const cached = await redis.get(RedisKeys.categoriesAll());
+
+  if (cached) {
+    sendSuccess(res, { categories: JSON.parse(cached) });
+    return;
+  }
+
   const categories = await prisma.category.findMany({
     orderBy: { name: 'asc' },
     include: {
@@ -23,6 +34,8 @@ router.get('/', asyncHandler(async (req, res) => {
       },
     },
   });
+
+  await redis.setex(RedisKeys.categoriesAll(), RedisTTL.CATEGORIES_CACHE, JSON.stringify(categories));
 
   sendSuccess(res, { categories });
 }));
@@ -61,6 +74,9 @@ router.post(
     const category = await prisma.category.create({
       data: req.body,
     });
+
+    const redis = getRedis();
+    await redis.del(RedisKeys.categoriesAll());
 
     sendSuccess(res, { category }, 201);
   })

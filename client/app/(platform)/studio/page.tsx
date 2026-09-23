@@ -23,6 +23,7 @@ import {
   AlertCircle,
   Clock,
   Sparkles,
+  BarChart3,
 } from 'lucide-react';
 import { Stream } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
@@ -350,10 +351,11 @@ export default function StudioDashboardPage() {
                     <div className="flex items-center gap-2 shrink-0">
                       {stream.status === 'ENDED' ? (
                         <Link
-                          href="/studio/streams"
-                          className="rounded-xl bg-zylo-warm border border-zylo-border px-3 py-1.5 text-xs font-extrabold text-zylo-secondary hover:bg-zylo-soft transition"
+                          href={`/studio/streams/${stream.id}`}
+                          className="flex items-center gap-1.5 rounded-xl bg-purple-50 border border-purple-200/80 px-3 py-1.5 text-xs font-black text-zylo-purple hover:bg-purple-100 transition shadow-2xs"
                         >
-                          [ STATS ]
+                          <BarChart3 className="h-3.5 w-3.5" />
+                          View Stats
                         </Link>
                       ) : (
                         <Link

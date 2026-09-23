@@ -19,6 +19,7 @@ export const RedisKeys = {
   profileCache: (userId: string) => `profile:${userId}`,
   streamCache: (streamId: string) => `stream:${streamId}`,
   giftsCatalog: () => 'gifts:catalog',
+  categoriesAll: () => 'categories:all',
 
   // Rate limiting
   rateLimit: (type: string, identifier: string) => `rate:${type}:${identifier}`,
@@ -39,6 +40,7 @@ export const RedisTTL = {
   PROFILE_CACHE: 300, // 5 minutes
   STREAM_CACHE: 15,
   GIFT_CATALOG_CACHE: 3600, // 1 hour
+  CATEGORIES_CACHE: 3600, // 1 hour
   CHAT_RATE_WINDOW: 10,
   CHAT_RATE_MAX: 8,
 } as const;

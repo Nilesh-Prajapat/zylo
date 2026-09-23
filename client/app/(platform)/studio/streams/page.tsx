@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Globe,
   Lock,
+  BarChart3,
 } from 'lucide-react';
 import { Stream } from '@/lib/types';
 import { streamsApi } from '@/lib/api';
@@ -240,6 +241,16 @@ export default function StreamManagerPage() {
                       className="flex items-center gap-1.5 rounded-xl bg-zylo-purple px-4 py-2 text-xs font-extrabold text-white hover:bg-[#6926d1] transition shadow-xs"
                     >
                       <Radio className="h-3.5 w-3.5 text-[#B8FF3D]" /> Control Room
+                    </Link>
+                  )}
+
+                  {stream.status === 'ENDED' && (
+                    <Link
+                      href={`/studio/streams/${stream.id}`}
+                      className="flex items-center gap-1.5 rounded-xl bg-purple-50 border border-purple-200/80 px-3 py-2 text-xs font-black text-zylo-purple hover:bg-purple-100 transition shadow-2xs"
+                      title="View Stream Analytics & Stats"
+                    >
+                      <BarChart3 className="h-3.5 w-3.5" /> Stats
                     </Link>
                   )}
 

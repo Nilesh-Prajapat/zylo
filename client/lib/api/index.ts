@@ -153,34 +153,94 @@ export interface UpdateStreamParams {
 
 export const streamsApi = {
   async getLiveStreams(): Promise<Stream[]> {
+    let apiStreams: Stream[] = [];
     try {
       const res = await apiClient.get('/streams/live');
-      const apiStreams = res.data.data?.streams || [];
-      if (apiStreams.length > 0) return apiStreams;
+      apiStreams = res.data.data?.streams || [];
     } catch (e) {}
-    return MOCK_STREAMS.filter((s) => s.status === 'LIVE');
+
+    // Real DB streams ALWAYS come on top!
+    const mockLive = MOCK_STREAMS.filter((s) => s.status === 'LIVE');
+    const existingIds = new Set(apiStreams.map((s) => s.id));
+    const combined = [...apiStreams, ...mockLive.filter((s) => !existingIds.has(s.id))];
+    return combined;
   },
 
   async getUpcomingStreams(): Promise<Stream[]> {
+    let apiStreams: Stream[] = [];
     try {
       const res = await apiClient.get('/streams/upcoming');
-      const apiStreams = res.data.data?.streams || [];
-      if (apiStreams.length > 0) return apiStreams;
+      apiStreams = res.data.data?.streams || [];
     } catch (e) {}
-    return MOCK_STREAMS.filter((s) => s.status === 'SCHEDULED');
+
+    // Real DB upcoming streams ALWAYS come on top!
+    const mockUpcoming = MOCK_STREAMS.filter((s) => s.status === 'SCHEDULED');
+    const existingIds = new Set(apiStreams.map((s) => s.id));
+    const combined = [...apiStreams, ...mockUpcoming.filter((s) => !existingIds.has(s.id))];
+    return combined;
   },
 
   async getDiscoverStreams(): Promise<{ live: Stream[]; upcoming: Stream[] }> {
+    let live: Stream[] = [];
+    let upcoming: Stream[] = [];
     try {
       const res = await apiClient.get('/streams/discover');
       const data = res.data.data;
-      if (data && (data.live?.length > 0 || data.upcoming?.length > 0)) return data;
+      if (data) {
+        live = data.live || [];
+        upcoming = data.upcoming || [];
+      }
     } catch (e) {}
+
+    const mockLive = MOCK_STREAMS.filter((s) => s.status === 'LIVE');
+    const mockUpcoming = MOCK_STREAMS.filter((s) => s.status === 'SCHEDULED');
+
+    const liveIds = new Set(live.map((s) => s.id));
+    const upcomingIds = new Set(upcoming.map((s) => s.id));
+
     return {
-      live: MOCK_STREAMS.filter((s) => s.status === 'LIVE'),
-      upcoming: MOCK_STREAMS.filter((s) => s.status === 'SCHEDULED'),
+      live: [...live, ...mockLive.filter((s) => !liveIds.has(s.id))],
+      upcoming: [...upcoming, ...mockUpcoming.filter((s) => !upcomingIds.has(s.id))],
     };
   },
+
+  async toggleReminder(streamId: string): Promise<{ reminded: boolean; message?: string }> {
+    try {
+      const res = await apiClient.post(`/streams/${streamId}/remind`);
+      return res.data.data;
+    } catch (e) {
+      if (typeof window !== 'undefined') {
+        const key = `zylo_reminders_demo`;
+        const current: string[] = JSON.parse(localStorage.getItem(key) || '[]');
+        let reminded = false;
+        let updated: string[];
+        if (current.includes(streamId)) {
+          updated = current.filter((id) => id !== streamId);
+          reminded = false;
+        } else {
+          updated = [...current, streamId];
+          reminded = true;
+        }
+        localStorage.setItem(key, JSON.stringify(updated));
+        return { reminded };
+      }
+      return { reminded: true };
+    }
+  },
+
+  async getMyReminders(): Promise<string[]> {
+    try {
+      const res = await apiClient.get('/streams/reminders/mine');
+      return res.data.data?.streamIds || [];
+    } catch (e) {
+      if (typeof window !== 'undefined') {
+        const key = `zylo_reminders_demo`;
+        return JSON.parse(localStorage.getItem(key) || '[]');
+      }
+      return [];
+    }
+  },
+
 
   async getStreamById(id: string): Promise<{ stream: Stream; isFollowing?: boolean }> {
     try {
@@ -280,11 +340,14 @@ export const streamsApi = {
   async getChatHistory(streamId: string, limit?: number): Promise<ChatMessage[]> {
     try {
       const res = await apiClient.get(`/streams/${streamId}/chat`, { params: { limit: limit || 50 } });
-      const msgs = res.data.data?.messages;
-      if (msgs && msgs.length > 0) return msgs;
+      if (res.data?.data?.messages && Array.isArray(res.data.data.messages)) {
+        return res.data.data.messages;
+      }
     } catch (e) {}
-    return MOCK_CHAT_MESSAGES[streamId] || MOCK_CHAT_MESSAGES['stream_001'] || [];
+    // Only return mock chat messages for pre-defined mock streams
+    return MOCK_CHAT_MESSAGES[streamId] || [];
   },
+
 
 
   async getStreamChat(streamId: string, limit?: number): Promise<ChatMessage[]> {

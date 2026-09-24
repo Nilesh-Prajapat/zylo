@@ -74,6 +74,25 @@ export function useUpcomingStreams() {
   });
 }
 
+export function useStreamReminders() {
+  return useQuery({
+    queryKey: ['stream-reminders'] as const,
+    queryFn: () => streamsApi.getMyReminders(),
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useToggleReminder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (streamId: string) => streamsApi.toggleReminder(streamId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stream-reminders'] });
+    },
+  });
+}
+
+
 export function useDiscoverStreams() {
   return useQuery({
     queryKey: ['discoverStreams'] as const,

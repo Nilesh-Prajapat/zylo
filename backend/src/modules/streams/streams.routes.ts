@@ -344,6 +344,45 @@ router.patch('/:id/publication', requireAuth, asyncHandler(async (req, res) => {
   sendSuccess(res, { stream: updated });
 }));
 
+// ─── GET /api/v1/streams/reminders/mine ───────────────────────
+
+router.get('/reminders/mine', requireAuth, asyncHandler(async (req, res) => {
+  const userId = req.user!.id;
+  const reminders = await prisma.streamReminder.findMany({
+    where: { userId },
+    select: { streamId: true },
+  });
+  sendSuccess(res, { streamIds: reminders.map((r) => r.streamId) });
+}));
+
+// ─── POST /api/v1/streams/:id/remind ──────────────────────────
+
+router.post('/:id/remind', requireAuth, asyncHandler(async (req, res) => {
+  const streamId = req.params.id;
+  const userId = req.user!.id;
+
+  const stream = await prisma.stream.findFirst({
+    where: { OR: [{ id: streamId }, { publicId: streamId }] },
+  });
+  if (!stream) throw AppError.notFound('Stream not found');
+
+  const existing = await prisma.streamReminder.findUnique({
+    where: { userId_streamId: { userId, streamId: stream.id } },
+  });
+
+  if (existing) {
+    await prisma.streamReminder.delete({
+      where: { id: existing.id },
+    });
+    sendSuccess(res, { reminded: false, message: 'Reminder removed' });
+  } else {
+    await prisma.streamReminder.create({
+      data: { userId, streamId: stream.id },
+    });
+    sendSuccess(res, { reminded: true, message: 'Reminder set successfully' });
+  }
+}));
+
 // ─── GET /api/v1/streams/live ─────────────────────────────────
 
 router.get('/live', optionalAuth, asyncHandler(async (req, res) => {
@@ -357,7 +396,10 @@ router.get('/live', optionalAuth, asyncHandler(async (req, res) => {
 
   const streams = await prisma.stream.findMany({
     where: { status: StreamStatus.LIVE },
-    orderBy: { viewerCount: 'desc' },
+    orderBy: [
+      { startedAt: 'desc' },
+      { viewerCount: 'desc' },
+    ],
     take: 50,
     include: {
       broadcaster: {
@@ -365,6 +407,7 @@ router.get('/live', optionalAuth, asyncHandler(async (req, res) => {
       },
     },
   });
+
 
   // Enrich with Redis viewer counts
   for (const stream of streams) {

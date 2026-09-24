@@ -147,9 +147,11 @@ model User {
   moderatedUserActions  StreamModeration[]   @relation("ModeratedUser")
   performedModerations StreamModeration[]   @relation("StreamModerator")
   walletTopups          WalletTopup[]
+  streamReminders       StreamReminder[]
 
   @@map("users")
 }
+
 
 // ─── Profile ──────────────────────────────────────────────────
 
@@ -264,6 +266,7 @@ model Stream {
   recording        StreamRecording?
   vod              Vod?
   moderations      StreamModeration[]
+  reminders        StreamReminder[]
 
   @@index([status, scheduledAt])
   @@index([status, startedAt])
@@ -271,6 +274,7 @@ model Stream {
   @@index([createdAt])
   @@map("streams")
 }
+
 
 // ─── ChatMessage ──────────────────────────────────────────────
 
@@ -539,3 +543,21 @@ model WalletTopup {
   @@index([razorpayOrderId])
   @@map("wallet_topups")
 }
+
+// ─── StreamReminder ───────────────────────────────────────────
+
+model StreamReminder {
+  id        String   @id @default(cuid())
+  userId    String
+  streamId  String
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stream Stream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, streamId])
+  @@index([userId])
+  @@index([streamId])
+  @@map("stream_reminders")
+}
+

@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
-import { Bell, Calendar, Check } from 'lucide-react';
+import { Bell, Calendar, Check, Loader2 } from 'lucide-react';
 import type { Stream } from '@/lib/types';
 import { SectionHeader } from '../shared/SectionHeader';
 import { Avatar } from '../shared/Avatar';
+import { useStreamReminders, useToggleReminder } from '@/lib/hooks/use-queries';
 
 function formatScheduled(scheduledAt?: string | null): { date: string; time: string } {
   if (!scheduledAt) return { date: 'TODAY', time: '8:00 PM' };
@@ -17,8 +17,17 @@ function formatScheduled(scheduledAt?: string | null): { date: string; time: str
   return { date: dateStr, time: timeStr };
 }
 
-function UpcomingCard({ stream }: { stream: Stream }) {
-  const [reminded, setReminded] = useState(false);
+function UpcomingCard({
+  stream,
+  isReminded,
+  onToggleReminder,
+  isPending,
+}: {
+  stream: Stream;
+  isReminded: boolean;
+  onToggleReminder: (streamId: string) => void;
+  isPending: boolean;
+}) {
   const thumbnail = stream.thumbnailUrl || 'https://images.unsplash.com/photo-1591488320449-011701bb6704?w=800&auto=format&fit=crop';
   const broadcaster = stream.broadcaster;
   const displayName = broadcaster?.displayName || broadcaster?.username || 'Creator';
@@ -63,14 +72,17 @@ function UpcomingCard({ stream }: { stream: Stream }) {
 
         <button
           type="button"
-          onClick={() => setReminded(!reminded)}
-          className={`mt-3 flex w-full items-center justify-center gap-1.5 rounded-[10px] py-1.5 text-xs font-bold transition cursor-pointer ${
-            reminded
+          disabled={isPending}
+          onClick={() => onToggleReminder(stream.id)}
+          className={`mt-3 flex w-full items-center justify-center gap-1.5 rounded-[10px] py-1.5 text-xs font-bold transition cursor-pointer disabled:opacity-60 ${
+            isReminded
               ? 'bg-[#F3EEFF] text-[#7C3AED] border border-[#7C3AED]/30'
               : 'bg-[#171322] text-white hover:bg-[#7C3AED]'
           }`}
         >
-          {reminded ? (
+          {isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : isReminded ? (
             <>
               <Check className="h-3.5 w-3.5" /> Reminder Set
             </>
@@ -90,6 +102,9 @@ interface UpcomingSectionProps {
 }
 
 export function UpcomingSection({ streams }: UpcomingSectionProps) {
+  const { data: reminderIds = [] } = useStreamReminders();
+  const toggleMutation = useToggleReminder();
+
   if (!streams || streams.length === 0) return null;
 
   return (
@@ -99,9 +114,18 @@ export function UpcomingSection({ streams }: UpcomingSectionProps) {
         subtitle="Scheduled broadcasts coming up soon — set a reminder!"
       />
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
-        {streams.map((stream) => (
-          <UpcomingCard key={stream.id} stream={stream} />
-        ))}
+        {streams.map((stream) => {
+          const isReminded = reminderIds.includes(stream.id);
+          return (
+            <UpcomingCard
+              key={stream.id}
+              stream={stream}
+              isReminded={isReminded}
+              onToggleReminder={(id) => toggleMutation.mutate(id)}
+              isPending={toggleMutation.isPending && toggleMutation.variables === stream.id}
+            />
+          );
+        })}
       </div>
     </section>
   );

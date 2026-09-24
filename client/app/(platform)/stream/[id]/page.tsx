@@ -111,20 +111,77 @@ export default function StreamViewerPage() {
   const roomRef = useRef<Room | null>(null);
 
   const toggleFullscreen = () => {
-    if (!containerRef.current) return;
-    if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+    const elem: any = containerRef.current || videoRef.current || replayVideoRef.current;
+    if (!elem) return;
+
+    const doc: any = document;
+
+    const isFs = !!(
+      doc.fullscreenElement ||
+      doc.webkitFullscreenElement ||
+      doc.mozFullScreenElement ||
+      doc.msFullscreenElement
+    );
+
+    if (!isFs) {
+      if (elem.requestFullscreen) {
+        elem.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {
+          if (videoRef.current && (videoRef.current as any).webkitEnterFullscreen) {
+            (videoRef.current as any).webkitEnterFullscreen();
+          }
+        });
+      } else if (elem.webkitRequestFullscreen) {
+        elem.webkitRequestFullscreen();
+        setIsFullscreen(true);
+      } else if (elem.mozRequestFullScreen) {
+        elem.mozRequestFullScreen();
+        setIsFullscreen(true);
+      } else if (elem.msRequestFullscreen) {
+        elem.msRequestFullscreen();
+        setIsFullscreen(true);
+      } else if (videoRef.current && (videoRef.current as any).webkitEnterFullscreen) {
+        (videoRef.current as any).webkitEnterFullscreen();
+        setIsFullscreen(true);
+      }
     } else {
-      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+      if (doc.exitFullscreen) {
+        doc.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+      } else if (doc.webkitExitFullscreen) {
+        doc.webkitExitFullscreen();
+        setIsFullscreen(false);
+      } else if (doc.mozCancelFullScreen) {
+        doc.mozCancelFullScreen();
+        setIsFullscreen(false);
+      } else if (doc.msExitFullscreen) {
+        doc.msExitFullscreen();
+        setIsFullscreen(false);
+      }
     }
   };
 
   useEffect(() => {
     const handleFsChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+      const doc: any = document;
+      const isFs = !!(
+        doc.fullscreenElement ||
+        doc.webkitFullscreenElement ||
+        doc.mozFullScreenElement ||
+        doc.msFullscreenElement
+      );
+      setIsFullscreen(isFs);
     };
+
     document.addEventListener('fullscreenchange', handleFsChange);
-    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+    document.addEventListener('webkitfullscreenchange', handleFsChange);
+    document.addEventListener('mozfullscreenchange', handleFsChange);
+    document.addEventListener('MSFullscreenChange', handleFsChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      document.removeEventListener('webkitfullscreenchange', handleFsChange);
+      document.removeEventListener('mozfullscreenchange', handleFsChange);
+      document.removeEventListener('MSFullscreenChange', handleFsChange);
+    };
   }, []);
 
   // 1. Load Stream Info & Chat History
@@ -292,8 +349,8 @@ export default function StreamViewerPage() {
 
   const handleSendMessage = () => {
     if (!chatText.trim()) return;
-    const senderName = user?.displayName || user?.username || 'Maya Chen';
-    const senderAvatar = user?.avatarUrl || 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop';
+    const senderName = user?.displayName || user?.username || 'Viewer';
+    const senderAvatar = user?.avatarUrl || null;
     
     const newMsg: ChatMessage = {
       id: `msg_${Date.now()}_${Math.random()}`,
@@ -303,7 +360,7 @@ export default function StreamViewerPage() {
       createdAt: new Date().toISOString(),
       user: {
         id: user?.id || 'demo_user',
-        username: user?.username || 'mayachen',
+        username: user?.username || 'viewer',
         displayName: senderName,
         avatarUrl: senderAvatar,
       },
@@ -311,14 +368,14 @@ export default function StreamViewerPage() {
 
     setMessages((prev) => [...prev, newMsg]);
     try {
-      socketClient.sendChatMessage(streamId, chatText.trim(), senderName, senderAvatar);
+      socketClient.sendChatMessage(streamId, chatText.trim(), senderName, senderAvatar || '');
     } catch (e) {}
     setChatText('');
   };
 
   const handleSendReaction = (emoji: string) => {
-    const senderName = user?.displayName || user?.username || 'Maya Chen';
-    const senderAvatar = user?.avatarUrl || 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop';
+    const senderName = user?.displayName || user?.username || 'Viewer';
+    const senderAvatar = user?.avatarUrl || null;
 
     const newMsg: ChatMessage = {
       id: `reaction_${Date.now()}_${Math.random()}`,
@@ -328,7 +385,7 @@ export default function StreamViewerPage() {
       createdAt: new Date().toISOString(),
       user: {
         id: user?.id || 'demo_user',
-        username: user?.username || 'mayachen',
+        username: user?.username || 'viewer',
         displayName: senderName,
         avatarUrl: senderAvatar,
       },
@@ -345,7 +402,7 @@ export default function StreamViewerPage() {
     }, 2000);
 
     try {
-      socketClient.sendChatMessage(streamId, emoji, senderName, senderAvatar);
+      socketClient.sendChatMessage(streamId, emoji, senderName, senderAvatar || '');
     } catch (e) {}
     setShowEmojiPicker(false);
   };

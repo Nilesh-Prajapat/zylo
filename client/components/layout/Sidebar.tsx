@@ -10,7 +10,6 @@ import {
   UserRound,
   Users,
   Video,
-  Sparkles,
 } from 'lucide-react';
 import { Logo } from './Logo';
 import { useAuth } from '@/lib/auth';
@@ -31,18 +30,7 @@ export function Sidebar() {
   const { user } = useAuth();
   const [showRoleModal, setShowRoleModal] = useState(false);
 
-  // Filter out any ugly test names
-  const isTestUser =
-    user &&
-    (user.username.toLowerCase().includes('test') ||
-      user.username.toLowerCase().includes('grey') ||
-      user.username.toLowerCase().includes('hii'));
-
-  const activeUser = isTestUser
-    ? { ...user, displayName: 'Maya Chen', username: 'mayachen', avatarUrl: DEMO_CREATOR.avatarUrl }
-    : user || DEMO_CREATOR;
-
-  const isCreator = user?.role === 'CREATOR' || true;
+  const activeUser = user || DEMO_CREATOR;
 
   const navItems = [
     { label: 'Home', href: '/', icon: HomeIcon },
@@ -95,7 +83,7 @@ export function Sidebar() {
 
         <div className="mt-auto pt-4 border-t border-[#E9E5F2]">
           <Link
-            href={`/profile/${activeUser.id}`}
+            href={user ? `/profile/${user.id}` : '/login'}
             className="flex items-center gap-3 rounded-xl p-2 transition-colors hover:bg-[#F3EEFF]"
           >
             <div className="relative shrink-0">

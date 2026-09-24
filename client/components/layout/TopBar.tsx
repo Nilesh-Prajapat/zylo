@@ -37,13 +37,7 @@ export function TopBar() {
     }
   };
 
-  const isTestUser =
-    user &&
-    (user.username.toLowerCase().includes('test') ||
-      user.username.toLowerCase().includes('grey') ||
-      user.username.toLowerCase().includes('hii'));
-
-  const avatarUrl = isTestUser || !user ? DEMO_CREATOR_AVATAR : user.avatarUrl;
+  const avatarUrl = user?.avatarUrl || DEMO_CREATOR_AVATAR;
 
   return (
     <header className="flex h-[72px] shrink-0 items-center justify-between border-b border-[#E9E5F2] bg-white px-5 sm:px-8 relative z-40">
@@ -86,7 +80,7 @@ export function TopBar() {
         </div>
 
         <Link
-          href={user && !isTestUser ? `/profile/${user.id}` : '/profile/creator_004'}
+          href={user ? `/profile/${user.id}` : '/login'}
           className="flex items-center gap-1.5 rounded-full p-0.5 transition hover:ring-2 hover:ring-[#7C3AED]/30"
         >
           <Avatar src={avatarUrl} size="h-9 w-9" />

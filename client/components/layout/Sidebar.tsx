@@ -22,7 +22,7 @@ const DEMO_CREATOR = {
   id: 'creator_004',
   displayName: 'Maya Chen',
   username: 'mayachen',
-  avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=500&auto=format&fit=crop',
+  avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500&auto=format&fit=crop',
 };
 
 export function Sidebar() {

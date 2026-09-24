@@ -9,8 +9,6 @@ import { Avatar } from '../shared/Avatar';
 import { NotificationPanel } from './NotificationPanel';
 import { useNotifications } from '@/lib/hooks/use-notifications';
 
-const DEMO_CREATOR_AVATAR = 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=500&auto=format&fit=crop';
-
 export function TopBar() {
   const { user } = useAuth();
   const router = useRouter();
@@ -37,7 +35,7 @@ export function TopBar() {
     }
   };
 
-  const avatarUrl = user?.avatarUrl || DEMO_CREATOR_AVATAR;
+  const avatarUrl = user?.avatarUrl;
 
   return (
     <header className="flex h-[72px] shrink-0 items-center justify-between border-b border-[#E9E5F2] bg-white px-5 sm:px-8 relative z-40">

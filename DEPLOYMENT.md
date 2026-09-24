@@ -246,3 +246,102 @@ Zylo uses **Neon** (`https://neon.tech`) for cloud serverless PostgreSQL databas
   "redis": "connected"
 }
 ```
+
+---
+
+## 5. CI/CD Pipeline & GitHub Actions Automation
+
+Zylo implements fully automated Continuous Integration and Continuous Deployment (CI/CD) pipelines for both the frontend (Vercel) and backend (AWS EC2).
+
+### A. Backend CI/CD Pipeline (`.github/workflows/deploy.yml`)
+
+The backend pipeline uses **GitHub Actions** to automatically deploy code to the AWS EC2 production instance on every push to the `main` branch.
+
+```yaml
+name: Deploy Zylo Backend to AWS EC2
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+
+            echo "=== Navigating to project root ==="
+            cd /var/www/backend
+
+            echo "=== Pre-update safety check: Verifying production .env ==="
+            test -f backend/.env || (echo "ERROR: Production backend/.env missing prior to deploy!" && exit 1)
+
+            echo "=== Fetching latest code from main branch ==="
+            git fetch origin main
+
+            echo "=== Updating repository code ==="
+            git reset --hard origin/main
+
+            echo "=== Post-update safety check: Verifying production .env survives ==="
+            test -f backend/.env || (echo "ERROR: Production backend/.env was removed during git reset!" && exit 1)
+
+            echo "=== Navigating to backend directory ==="
+            cd backend
+
+            echo "=== Installing dependencies ==="
+            npm ci
+
+            echo "=== Building application ==="
+            npm run build
+
+            echo "=== Reloading PM2 process ==="
+            pm2 reload ecosystem.config.cjs --update-env || pm2 start ecosystem.config.cjs
+            pm2 save
+
+            echo "=== Pausing for service warm-up ==="
+            sleep 5
+
+            echo "=== Performing health check ==="
+            curl --fail --max-time 10 http://127.0.0.1:4000/health
+
+            echo "=== Deployment successful ==="
+```
+
+#### GitHub Repository Secrets Setup:
+To enable automated EC2 deployment, configure the following secrets in GitHub (**Settings > Secrets and variables > Actions**):
+* `EC2_HOST`: Elastic IP address or domain of the AWS EC2 instance (e.g. `api.zylo.rocks`)
+* `EC2_USER`: SSH user (default `ubuntu` on Ubuntu 26.04)
+* `EC2_SSH_KEY`: Private SSH key with authorization to access the EC2 server
+
+#### Automated Deployment Execution Flow:
+1. Developer pushes code to `origin/main`.
+2. GitHub Actions runner executes `.github/workflows/deploy.yml`.
+3. Establishes SSH connection to the EC2 server (`appleboy/ssh-action`).
+4. Verifies production `.env` presence.
+5. Performs `git fetch origin main` and `git reset --hard origin/main`.
+6. Executes `npm ci` to install clean dependencies.
+7. Compiles TypeScript code to `dist/`.
+8. Reloads PM2 cluster with zero downtime (`pm2 reload ecosystem.config.cjs --update-env`).
+9. Queries local health check endpoint `http://127.0.0.1:4000/health` to confirm clean startup.
+
+---
+
+### B. Frontend CI/CD Pipeline (Vercel Git Integration)
+
+1. **Automatic Production & Preview Deployments**:
+   - Pushes to `main` automatically deploy to the Vercel Production environment (`zylo.rocks`).
+   - Pull Requests generate isolated **Preview Deployments** with instant preview links.
+2. **Build Optimization**:
+   - Vercel caches `node_modules` and Next.js build cache between runs.
+3. **Environment Injection**:
+   - Public variables (`NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SOCKET_URL`, `NEXT_PUBLIC_LIVEKIT_URL`) are injected into the build bundle automatically.

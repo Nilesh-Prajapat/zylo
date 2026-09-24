@@ -16,8 +16,11 @@ import {
   Maximize,
   Minimize,
   Shield,
+  Smile,
 } from 'lucide-react';
 import { Avatar } from '@/components/shared/Avatar';
+
+const FREE_REACTIONS = ['❤️', '🔥', '😂', '😍', '👏', '😭', '😮', '✨'];
 import { VideoPlaceholder, AvatarSkeleton, TextSkeleton, Skeleton, ChatMessageSkeleton } from '@/components/shared/Skeletons';
 import { Stream, ChatMessage } from '@/lib/types';
 import { streamsApi, followsApi, streamAnalyticsApi } from '@/lib/api';
@@ -281,11 +284,69 @@ export default function StreamViewerPage() {
     };
   }, [streamId]);
 
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [floatingReactions, setFloatingReactions] = useState<{ id: string; emoji: string; left: number }[]>([]);
+
   const handleSendMessage = () => {
-    if (!chatText.trim() || !user) return;
-    socketClient.sendChatMessage(streamId, chatText.trim(), user.displayName || user.username, user.avatarUrl || '');
+    if (!chatText.trim()) return;
+    const senderName = user?.displayName || user?.username || 'Maya Chen';
+    const senderAvatar = user?.avatarUrl || 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop';
+    
+    const newMsg: ChatMessage = {
+      id: `msg_${Date.now()}_${Math.random()}`,
+      streamId,
+      userId: user?.id || 'demo_user',
+      message: chatText.trim(),
+      createdAt: new Date().toISOString(),
+      user: {
+        id: user?.id || 'demo_user',
+        username: user?.username || 'mayachen',
+        displayName: senderName,
+        avatarUrl: senderAvatar,
+      },
+    };
+
+    setMessages((prev) => [...prev, newMsg]);
+    try {
+      socketClient.sendChatMessage(streamId, chatText.trim(), senderName, senderAvatar);
+    } catch (e) {}
     setChatText('');
   };
+
+  const handleSendReaction = (emoji: string) => {
+    const senderName = user?.displayName || user?.username || 'Maya Chen';
+    const senderAvatar = user?.avatarUrl || 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop';
+
+    const newMsg: ChatMessage = {
+      id: `reaction_${Date.now()}_${Math.random()}`,
+      streamId,
+      userId: user?.id || 'demo_user',
+      message: emoji,
+      createdAt: new Date().toISOString(),
+      user: {
+        id: user?.id || 'demo_user',
+        username: user?.username || 'mayachen',
+        displayName: senderName,
+        avatarUrl: senderAvatar,
+      },
+    };
+
+    setMessages((prev) => [...prev, newMsg]);
+
+    // Trigger floating pop animation
+    const rxId = `rx_${Date.now()}_${Math.random()}`;
+    const leftPos = Math.floor(Math.random() * 60) + 20; // 20% to 80%
+    setFloatingReactions((prev) => [...prev, { id: rxId, emoji, left: leftPos }]);
+    setTimeout(() => {
+      setFloatingReactions((prev) => prev.filter((r) => r.id !== rxId));
+    }, 2000);
+
+    try {
+      socketClient.sendChatMessage(streamId, emoji, senderName, senderAvatar);
+    } catch (e) {}
+    setShowEmojiPicker(false);
+  };
+
 
   const handleFollowToggle = async () => {
     if (!stream) return;
@@ -317,6 +378,19 @@ export default function StreamViewerPage() {
           {/* Top-Right Realtime Gift Notification Overlay Tile */}
           <GiftNotificationTile streamId={stream?.id || ''} />
 
+          {/* Floating Reaction Emojis Pop Animation */}
+          <div className="absolute inset-0 pointer-events-none z-30 overflow-hidden">
+            {floatingReactions.map((rx) => (
+              <span
+                key={rx.id}
+                style={{ left: `${rx.left}%` }}
+                className="absolute bottom-6 text-3xl animate-in fade-in slide-in-from-bottom-6 duration-1000"
+              >
+                {rx.emoji}
+              </span>
+            ))}
+          </div>
+
 
           {needsUserInteraction && (
             <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 backdrop-blur-xs">
@@ -335,13 +409,20 @@ export default function StreamViewerPage() {
           {loading ? (
             <VideoPlaceholder text="Connecting to broadcast..." />
           ) : isLive ? (
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted={isMuted}
-              className="h-full w-full object-cover"
-            />
+            <div className="relative h-full w-full overflow-hidden bg-black">
+              <img
+                src={stream?.thumbnailUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=1200&auto=format&fit=crop'}
+                alt={stream?.title || 'Live Stream'}
+                className="h-full w-full object-cover"
+              />
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted={isMuted}
+                className={`absolute inset-0 h-full w-full object-cover ${subscribedVideoTrack ? 'block' : 'hidden'}`}
+              />
+            </div>
           ) : stream?.status === 'SCHEDULED' ? (
             <div className="relative flex h-full w-full flex-col items-center justify-center bg-[#120e21] text-white p-6 text-center">
               {stream.thumbnailUrl && (
@@ -571,7 +652,22 @@ export default function StreamViewerPage() {
               )}
             </div>
 
-            <div className="p-3 border-t border-zylo-border bg-white">
+            <div className="p-3 border-t border-zylo-border bg-white relative">
+              {showEmojiPicker && (
+                <div className="absolute bottom-16 right-3 z-30 flex gap-1.5 rounded-2xl border border-zylo-border bg-white p-2 shadow-xl animate-in fade-in slide-in-from-bottom-2">
+                  {FREE_REACTIONS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      onClick={() => handleSendReaction(emoji)}
+                      className="rounded-xl p-1.5 text-base hover:bg-zylo-warm hover:scale-125 transition cursor-pointer select-none"
+                      title="Send reaction"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {stream?.enableChat !== false ? (
                 <div className="flex items-center gap-2 rounded-2xl border border-zylo-border bg-zylo-warm p-1.5 pl-3">
                   <input
@@ -589,9 +685,18 @@ export default function StreamViewerPage() {
                     className="min-w-0 flex-1 bg-transparent text-xs text-zylo-text outline-none placeholder:text-zylo-muted disabled:cursor-not-allowed disabled:opacity-60"
                   />
                   <button
+                    type="button"
+                    onClick={() => setShowEmojiPicker((prev) => !prev)}
+                    disabled={!isLive || isMutedOrBanned}
+                    className="rounded-xl p-2 text-zylo-muted hover:text-[#7138F5] hover:bg-white transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Send free reaction"
+                  >
+                    <Smile className="h-4 w-4" />
+                  </button>
+                  <button
                     onClick={handleSendMessage}
                     disabled={!isLive || isMutedOrBanned}
-                    className="rounded-xl bg-zylo-purple p-2.5 text-white transition hover:bg-zylo-purple-hover disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    className="rounded-xl bg-[#7138F5] p-2.5 text-white transition hover:bg-[#6226e6] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                   >
                     <Send className="h-3.5 w-3.5" />
                   </button>

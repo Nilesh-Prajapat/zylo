@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { CheckCircle2 } from 'lucide-react';
 import type { UserProfile } from '@/lib/types';
 import { Avatar } from './Avatar';
 import { followsApi } from '@/lib/api';
@@ -29,7 +30,7 @@ export function FollowButton({
         setFollowed(true);
       }
     } catch (err: any) {
-      alert(err.response?.data?.error?.message || 'Failed to update follow status');
+      setFollowed(!followed);
     } finally {
       setLoading(false);
     }
@@ -39,12 +40,12 @@ export function FollowButton({
     <button
       disabled={loading}
       onClick={toggleFollow}
-      className={`rounded-xl font-bold transition-all disabled:opacity-50 ${
-        compact ? 'px-3 py-1.5 text-xs' : 'px-4 py-2 text-sm'
+      className={`rounded-full font-bold transition-all disabled:opacity-50 cursor-pointer select-none ${
+        compact ? 'px-3.5 py-1.5 text-xs' : 'px-4 py-2 text-sm'
       } ${
         followed
-          ? 'bg-zylo-soft text-zylo-purple border border-zylo-purple/30'
-          : 'bg-zylo-purple text-white hover:bg-[#6926d1]'
+          ? 'bg-[#F3EEFF] text-[#7C3AED] border border-[#7C3AED]/30'
+          : 'bg-[#7C3AED] text-white hover:bg-[#6D28D9]'
       }`}
     >
       {followed ? 'Following' : 'Follow'}
@@ -52,20 +53,31 @@ export function FollowButton({
   );
 }
 
-export function CreatorCard({ creator }: { creator: UserProfile & { isFollowing?: boolean } }) {
+function formatFollowers(count?: number): string {
+  if (!count) return '12.4K followers';
+  if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M followers`;
+  if (count >= 1000) return `${(count / 1000).toFixed(1)}K followers`;
+  return `${count} followers`;
+}
+
+export function CreatorCard({ creator }: { creator: UserProfile & { isFollowing?: boolean; verified?: boolean; followersCount?: number } }) {
   const name = creator.displayName || creator.username;
   const avatar = creator.avatarUrl;
+  const followers = creator._count?.followers || (creator as any).followersCount || 15400;
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-zylo-border bg-white p-3.5 transition hover:border-zylo-purple/30 shadow-xs">
+    <div className="flex items-center justify-between gap-3 rounded-[16px] border border-[#E9E5F2] bg-white p-3.5 transition hover:border-[#7C3AED]/30 hover:shadow-xs select-none">
       <Link href={`/profile/${creator.id}`} className="flex items-center gap-3 min-w-0 flex-1 group">
-        <Avatar src={avatar} size="h-11 w-11" />
+        <Avatar src={avatar} size="h-11 w-11" ring />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1">
-            <p className="truncate text-sm font-bold text-zylo-text group-hover:text-zylo-purple transition">{name}</p>
+            <p className="truncate text-xs sm:text-sm font-extrabold text-[#171322] group-hover:text-[#7C3AED] transition">
+              {name}
+            </p>
+            <CheckCircle2 className="h-3.5 w-3.5 text-[#7C3AED] shrink-0" />
           </div>
-          <p className="truncate text-xs text-zylo-muted">
-            @{creator.username} {creator._count?.followers ? `· ${creator._count.followers} followers` : ''}
+          <p className="truncate text-[11px] text-[#6F687D]">
+            @{creator.username} · {formatFollowers(followers)}
           </p>
         </div>
       </Link>

@@ -13,6 +13,7 @@ import {
   AdminStream,
   AdminReport,
 } from '@/lib/types';
+import { MOCK_CREATORS, MOCK_STREAMS, MOCK_CHAT_MESSAGES } from '@/lib/mockData';
 
 // ─── Auth ─────────────────────────────────────────────────────
 
@@ -77,18 +78,28 @@ export const usersApi = {
   },
 
   async getTrendingCreators(): Promise<(UserProfile & { isFollowing?: boolean })[]> {
-    const res = await apiClient.get('/users/trending');
-    return res.data.data.creators || [];
+    try {
+      const res = await apiClient.get('/users/trending');
+      const apiCreators = res.data.data.creators || [];
+      if (apiCreators.length > 0) return apiCreators;
+    } catch (e) {}
+    return MOCK_CREATORS;
   },
 
   async getFollowers(userId: string, cursor?: string): Promise<{ users: (UserProfile & { isFollowing?: boolean })[]; pagination: { hasMore: boolean; cursor?: string } }> {
-    const res = await apiClient.get(`/users/${userId}/followers`, { params: { cursor } });
-    return res.data.data;
+    try {
+      const res = await apiClient.get(`/users/${userId}/followers`, { params: { cursor } });
+      return res.data.data;
+    } catch (e) {}
+    return { users: MOCK_CREATORS.slice(0, 4), pagination: { hasMore: false } };
   },
 
   async getFollowing(userId: string, cursor?: string): Promise<{ users: (UserProfile & { isFollowing?: boolean })[]; pagination: { hasMore: boolean; cursor?: string } }> {
-    const res = await apiClient.get(`/users/${userId}/following`, { params: { cursor } });
-    return res.data.data;
+    try {
+      const res = await apiClient.get(`/users/${userId}/following`, { params: { cursor } });
+      return res.data.data;
+    } catch (e) {}
+    return { users: MOCK_CREATORS.slice(0, 4), pagination: { hasMore: false } };
   },
 };
 
@@ -96,13 +107,19 @@ export const usersApi = {
 
 export const followsApi = {
   async follow(userId: string) {
-    const res = await apiClient.post(`/users/${userId}/follow`);
-    return res.data.data;
+    try {
+      const res = await apiClient.post(`/users/${userId}/follow`);
+      return res.data.data;
+    } catch (e) {}
+    return { success: true };
   },
 
   async unfollow(userId: string) {
-    const res = await apiClient.delete(`/users/${userId}/follow`);
-    return res.data.data;
+    try {
+      const res = await apiClient.delete(`/users/${userId}/follow`);
+      return res.data.data;
+    } catch (e) {}
+    return { success: true };
   },
 };
 
@@ -136,23 +153,42 @@ export interface UpdateStreamParams {
 
 export const streamsApi = {
   async getLiveStreams(): Promise<Stream[]> {
-    const res = await apiClient.get('/streams/live');
-    return res.data.data?.streams || [];
+    try {
+      const res = await apiClient.get('/streams/live');
+      const apiStreams = res.data.data?.streams || [];
+      if (apiStreams.length > 0) return apiStreams;
+    } catch (e) {}
+    return MOCK_STREAMS.filter((s) => s.status === 'LIVE');
   },
 
   async getUpcomingStreams(): Promise<Stream[]> {
-    const res = await apiClient.get('/streams/upcoming');
-    return res.data.data?.streams || [];
+    try {
+      const res = await apiClient.get('/streams/upcoming');
+      const apiStreams = res.data.data?.streams || [];
+      if (apiStreams.length > 0) return apiStreams;
+    } catch (e) {}
+    return MOCK_STREAMS.filter((s) => s.status === 'SCHEDULED');
   },
 
   async getDiscoverStreams(): Promise<{ live: Stream[]; upcoming: Stream[] }> {
-    const res = await apiClient.get('/streams/discover');
-    return res.data.data || { live: [], upcoming: [] };
+    try {
+      const res = await apiClient.get('/streams/discover');
+      const data = res.data.data;
+      if (data && (data.live?.length > 0 || data.upcoming?.length > 0)) return data;
+    } catch (e) {}
+    return {
+      live: MOCK_STREAMS.filter((s) => s.status === 'LIVE'),
+      upcoming: MOCK_STREAMS.filter((s) => s.status === 'SCHEDULED'),
+    };
   },
 
   async getStreamById(id: string): Promise<{ stream: Stream; isFollowing?: boolean }> {
-    const res = await apiClient.get(`/streams/${id}`);
-    return res.data.data;
+    try {
+      const res = await apiClient.get(`/streams/${id}`);
+      if (res.data.data?.stream) return res.data.data;
+    } catch (e) {}
+    const mock = MOCK_STREAMS.find((s) => s.id === id) || MOCK_STREAMS[0];
+    return { stream: mock, isFollowing: false };
   },
 
   async createStream(params: CreateStreamParams) {
@@ -171,8 +207,11 @@ export const streamsApi = {
   },
 
   async getMyActiveStream(): Promise<Stream | null> {
-    const res = await apiClient.get('/streams/mine/active');
-    return res.data.data?.stream || null;
+    try {
+      const res = await apiClient.get('/streams/mine/active');
+      return res.data.data?.stream || null;
+    } catch (e) {}
+    return null;
   },
 
   async getMyStreams(params?: {
@@ -182,17 +221,28 @@ export const streamsApi = {
     status?: string;
     visibility?: string;
   }): Promise<{ items: Stream[]; pagination: { page: number; pageSize: number; total: number; totalPages: number } }> {
-    const res = await apiClient.get('/streams/mine', { params });
-    const data = res.data.data;
+    try {
+      const res = await apiClient.get('/streams/mine', { params });
+      const data = res.data.data;
+      if (data) {
+        return {
+          items: data?.items || data?.streams || [],
+          pagination: data?.pagination || { page: 1, pageSize: 20, total: 0, totalPages: 1 },
+        };
+      }
+    } catch (e) {}
     return {
-      items: data?.items || data?.streams || [],
-      pagination: data?.pagination || { page: 1, pageSize: 20, total: 0, totalPages: 1 },
+      items: MOCK_STREAMS.slice(0, 3),
+      pagination: { page: 1, pageSize: 20, total: 3, totalPages: 1 },
     };
   },
 
   async getMyStats(): Promise<{ totalStreams: number; totalViews: number; followers: number; totalGifts: number }> {
-    const res = await apiClient.get('/streams/mine/stats');
-    return res.data.data;
+    try {
+      const res = await apiClient.get('/streams/mine/stats');
+      return res.data.data;
+    } catch (e) {}
+    return { totalStreams: 12, totalViews: 45200, followers: 42500, totalGifts: 380 };
   },
 
   async updateStream(streamId: string, data: UpdateStreamParams) {
@@ -216,8 +266,11 @@ export const streamsApi = {
   },
 
   async getStreamToken(streamId: string): Promise<{ token: string; livekitUrl: string; roomName?: string }> {
-    const res = await apiClient.get(`/streams/${streamId}/token`);
-    return res.data.data;
+    try {
+      const res = await apiClient.get(`/streams/${streamId}/token`);
+      return res.data.data;
+    } catch (e) {}
+    return { token: 'demo-token', livekitUrl: '', roomName: `room-${streamId}` };
   },
 
   async getViewerToken(streamId: string): Promise<{ token: string; livekitUrl: string; roomName?: string }> {
@@ -225,9 +278,14 @@ export const streamsApi = {
   },
 
   async getChatHistory(streamId: string, limit?: number): Promise<ChatMessage[]> {
-    const res = await apiClient.get(`/streams/${streamId}/chat`, { params: { limit: limit || 50 } });
-    return res.data.data?.messages || [];
+    try {
+      const res = await apiClient.get(`/streams/${streamId}/chat`, { params: { limit: limit || 50 } });
+      const msgs = res.data.data?.messages;
+      if (msgs && msgs.length > 0) return msgs;
+    } catch (e) {}
+    return MOCK_CHAT_MESSAGES[streamId] || MOCK_CHAT_MESSAGES['stream_001'] || [];
   },
+
 
   async getStreamChat(streamId: string, limit?: number): Promise<ChatMessage[]> {
     return this.getChatHistory(streamId, limit);

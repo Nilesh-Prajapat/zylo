@@ -37,6 +37,7 @@ import { useAuth } from '@/lib/auth';
 import { Avatar } from '@/components/shared/Avatar';
 import { GiftNotificationTile } from '@/components/gifts/GiftNotificationTile';
 import { ChatModerationMenu } from '@/components/stream/ChatModerationMenu';
+import { CreatorGuard } from '@/components/shared/CreatorGuard';
 
 export default function StreamStudioPage() {
   const params = useParams();
@@ -439,7 +440,8 @@ export default function StreamStudioPage() {
   const isBroadcaster = user?.id === stream.broadcasterId;
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-[calc(100vh-60px)] bg-zylo-warm text-zylo-text">
+    <CreatorGuard>
+      <div className="flex flex-col lg:flex-row min-h-[calc(100vh-60px)] bg-zylo-warm text-zylo-text">
       {/* Main Stream Studio Control Center */}
       <div className="flex-1 flex flex-col min-w-0 p-4 lg:p-6 gap-5">
         {/* Top Header / Control Bar */}
@@ -716,7 +718,7 @@ export default function StreamStudioPage() {
                         }}
                         isBroadcaster={isBroadcaster}
                         onClose={() => setActiveModMenuMsgId(null)}
-                        onMessageDeleted={(mId) => {
+                        onMessageDeleted={(mId: string) => {
                           setMessages((prev) => prev.filter((m) => m.id !== mId));
                         }}
                       />
@@ -810,5 +812,6 @@ export default function StreamStudioPage() {
         </div>
       )}
     </div>
+    </CreatorGuard>
   );
 }

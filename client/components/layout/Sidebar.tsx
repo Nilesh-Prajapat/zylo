@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   Bell,
   Compass,
@@ -10,6 +10,7 @@ import {
   UserRound,
   Users,
   Video,
+  Sparkles,
 } from 'lucide-react';
 import { Logo } from './Logo';
 import { useAuth } from '@/lib/auth';
@@ -27,16 +28,18 @@ const DEMO_CREATOR = {
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { user } = useAuth();
   const [showRoleModal, setShowRoleModal] = useState(false);
 
   const activeUser = user || DEMO_CREATOR;
+  const isCreator = user?.role === 'CREATOR';
 
   const navItems = [
     { label: 'Home', href: '/', icon: HomeIcon },
     { label: 'Explore', href: '/explore', icon: Compass },
     { label: 'Following', href: '/following', icon: Users },
-    { label: 'Studio', href: '/studio', icon: Video },
+    ...(isCreator ? [{ label: 'Studio', href: '/studio', icon: Video }] : []),
     { label: 'Notifications', href: '/notifications', icon: Bell },
     { label: 'Wallet', href: '/wallet', icon: Gem },
     { label: 'Profile', href: user ? `/profile/${user.id}` : '/login', icon: UserRound },
@@ -71,14 +74,29 @@ export function Sidebar() {
           })}
         </nav>
 
-        {/* Primary CTA: Go Live */}
+        {/* Primary Action Button: Go Live for CREATOR, Become a Creator for NORMAL_USER */}
         <div className="mt-5 px-1">
-          <Link
-            href="/studio?golive=true"
-            className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-[#B8FF3D] hover:bg-[#a5f025] text-black px-4 py-3 text-xs font-black shadow-xs transition-all transform active:scale-98"
-          >
-            <Video className="h-4 w-4 text-black fill-black" /> Go Live
-          </Link>
+          {isCreator ? (
+            <Link
+              href="/studio?golive=true"
+              className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-[#B8FF3D] hover:bg-[#a5f025] text-black px-4 py-3 text-xs font-black shadow-xs transition-all transform active:scale-98"
+            >
+              <Video className="h-4 w-4 text-black fill-black" /> Go Live
+            </Link>
+          ) : (
+            <button
+              onClick={() => {
+                if (!user) {
+                  router.push('/login');
+                } else {
+                  setShowRoleModal(true);
+                }
+              }}
+              className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-[#B8FF3D] hover:bg-[#a5f025] text-black px-4 py-3 text-xs font-black shadow-xs transition-all transform active:scale-98 cursor-pointer"
+            >
+              <Sparkles className="h-4 w-4 text-black fill-black" /> Become a Creator
+            </button>
+          )}
         </div>
 
         <div className="mt-auto pt-4 border-t border-[#E9E5F2]">
@@ -91,9 +109,16 @@ export function Sidebar() {
               <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-[#EF4444]" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-extrabold text-[#171322]">
-                {activeUser.displayName}
-              </p>
+              <div className="flex items-center gap-1.5">
+                <p className="truncate text-xs font-extrabold text-[#171322]">
+                  {activeUser.displayName}
+                </p>
+                {user?.role === 'CREATOR' && (
+                  <span className="rounded bg-[#B8FF3D] px-1 py-0.2 text-[9px] font-black text-black">
+                    PRO
+                  </span>
+                )}
+              </div>
               <p className="truncate text-[10px] text-[#6F687D]">@{activeUser.username}</p>
             </div>
           </Link>

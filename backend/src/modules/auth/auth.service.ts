@@ -26,17 +26,60 @@ function generateRefreshToken(): string {
   return uuidv4() + '-' + crypto.randomBytes(32).toString('hex');
 }
 
+async function generateUsernameSuggestions(baseUsername: string): Promise<string[]> {
+  const cleanBase = baseUsername.toLowerCase().trim().replace(/[^a-z0-9_]/g, '') || 'user';
+
+  const candidateTemplates = [
+    `${cleanBase}${Math.floor(100 + Math.random() * 900)}`,
+    `${cleanBase}_live`,
+    `${cleanBase}_zylo`,
+    `real_${cleanBase}`,
+    `${cleanBase}_official`,
+    `${cleanBase}${Math.floor(10 + Math.random() * 90)}`,
+  ];
+
+  const suggestions: string[] = [];
+  for (const candidate of candidateTemplates) {
+    if (suggestions.length >= 4) break;
+    const exists = await authRepository.findUserByUsername(candidate);
+    if (!exists && !suggestions.includes(candidate)) {
+      suggestions.push(candidate);
+    }
+  }
+
+  while (suggestions.length < 4) {
+    const extra = `${cleanBase}${Math.floor(1000 + Math.random() * 9000)}`;
+    const exists = await authRepository.findUserByUsername(extra);
+    if (!exists && !suggestions.includes(extra)) {
+      suggestions.push(extra);
+    }
+  }
+
+  return suggestions;
+}
+
 export const authService = {
   async register(input: RegisterInput) {
-    // Check duplicates
+    // Check duplicate email
     const existingEmail = await authRepository.findUserByEmail(input.email);
     if (existingEmail) {
-      throw new AppError(409, ErrorCodes.EMAIL_TAKEN, 'Email is already registered');
+      throw new AppError(
+        409,
+        ErrorCodes.EMAIL_TAKEN,
+        'This email address is already registered. Please log in or use a different email.'
+      );
     }
 
+    // Check duplicate username
     const existingUsername = await authRepository.findUserByUsername(input.username);
     if (existingUsername) {
-      throw new AppError(409, ErrorCodes.USERNAME_TAKEN, 'Username is already taken');
+      const suggestions = await generateUsernameSuggestions(input.username);
+      throw new AppError(
+        409,
+        ErrorCodes.USERNAME_TAKEN,
+        `Username "${input.username}" is already taken. Please choose another username or select a suggestion below.`,
+        suggestions
+      );
     }
 
     // Hash password with Argon2id
@@ -164,6 +207,18 @@ export const authService = {
       await authRepository.revokeTokenFamily(storedToken.family);
       logger.info('User logged out', { userId: storedToken.userId });
     }
+  },
+
+  async checkUsername(username: string) {
+    if (!username || username.trim().length === 0) {
+      return { available: false, suggestions: [] };
+    }
+    const existing = await authRepository.findUserByUsername(username.trim());
+    if (existing) {
+      const suggestions = await generateUsernameSuggestions(username);
+      return { available: false, username, suggestions };
+    }
+    return { available: true, username, suggestions: [] };
   },
 };
 

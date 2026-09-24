@@ -47,6 +47,11 @@ export const authApi = {
     const res = await apiClient.post('/auth/refresh');
     return res.data.data;
   },
+
+  async checkUsername(username: string): Promise<{ available: boolean; username: string; suggestions: string[] }> {
+    const res = await apiClient.get('/auth/check-username', { params: { username } });
+    return res.data.data;
+  },
 };
 
 // ─── Users ────────────────────────────────────────────────────

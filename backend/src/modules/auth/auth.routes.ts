@@ -95,4 +95,14 @@ router.get(
   })
 );
 
+// GET /api/v1/auth/check-username
+router.get(
+  '/check-username',
+  asyncHandler(async (req, res) => {
+    const username = (req.query.username as string) || '';
+    const result = await authService.checkUsername(username);
+    sendSuccess(res, result);
+  })
+);
+
 export const authRouter = router;

@@ -241,20 +241,24 @@ export default function StreamStudioPage() {
     };
 
     const handleGiftEvent = (data: any) => {
-      const giftMessage: ChatMessage = {
-        id: data.id || `gift-${Date.now()}-${Math.random()}`,
-        streamId: id,
-        userId: data.sender?.id || '',
-        message: `🎁 ${data.senderName || data.sender?.displayName || 'Viewer'} sent ${data.giftName || 'Gift'} (${data.giftEmoji || '🎁'} x${data.quantity || 1})!`,
-        createdAt: data.createdAt || new Date().toISOString(),
-        user: {
-          id: data.sender?.id || '',
-          username: data.sender?.username || data.senderName || 'Viewer',
-          displayName: data.sender?.displayName || data.senderName || 'Viewer',
-          avatarUrl: data.sender?.avatarUrl || null,
-        },
-      };
-      setMessages((prev) => [...prev, giftMessage]);
+      const giftMsgId = data.id || `gift-${Date.now()}-${Math.random()}`;
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === giftMsgId)) return prev;
+        const giftMessage: ChatMessage = {
+          id: giftMsgId,
+          streamId: id,
+          userId: data.sender?.id || '',
+          message: `🎁 ${data.senderName || data.sender?.displayName || 'Viewer'} sent ${data.giftName || 'Gift'} (${data.giftEmoji || '🎁'} x${data.quantity || 1})!`,
+          createdAt: data.createdAt || new Date().toISOString(),
+          user: {
+            id: data.sender?.id || '',
+            username: data.sender?.username || data.senderName || 'Viewer',
+            displayName: data.sender?.displayName || data.senderName || 'Viewer',
+            avatarUrl: data.sender?.avatarUrl || null,
+          },
+        };
+        return [...prev, giftMessage];
+      });
     };
 
     socketClient.on('chat:message', handleMessage);
@@ -262,7 +266,6 @@ export default function StreamStudioPage() {
     socketClient.on('stream:viewer_count', handleViewerCount);
     socketClient.on('stream:status_changed', handleStatusChanged);
     socketClient.on('gift:sent', handleGiftEvent);
-    socketClient.on('gift:received', handleGiftEvent);
 
     return () => {
       socketClient.leaveStream(id);
@@ -271,8 +274,8 @@ export default function StreamStudioPage() {
       socketClient.off('stream:viewer_count', handleViewerCount);
       socketClient.off('stream:status_changed', handleStatusChanged);
       socketClient.off('gift:sent', handleGiftEvent);
-      socketClient.off('gift:received', handleGiftEvent);
     };
+
   }, [id, stream]);
 
   // Media Controls Handlers

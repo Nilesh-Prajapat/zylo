@@ -519,8 +519,10 @@ giftsRouter.post('/streams/:id', requireAuth, validate(sendGiftSchema), asyncHan
     createdAt: transaction.createdAt.toISOString(),
   };
 
-  emitToStream(stream.id, 'gift:received', giftPayload);
+  // Emit realtime gift event to stream room once
   emitToStream(stream.id, 'gift:sent', giftPayload);
+  emitToUser(stream.broadcasterId, 'gift:received', giftPayload);
+
 
   sendSuccess(res, { transaction }, 201);
 }));

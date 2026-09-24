@@ -240,20 +240,24 @@ export default function StreamViewerPage() {
     };
 
     const handleGiftEvent = (data: any) => {
-      const giftMsg: ChatMessage = {
-        id: data.id || `gift-${Date.now()}-${Math.random()}`,
-        streamId,
-        userId: data.sender?.id || '',
-        message: `🎁 ${data.senderName || data.sender?.displayName || 'Viewer'} sent ${data.giftName || 'Gift'} (${data.giftEmoji || '🎁'} x${data.quantity || 1})!`,
-        createdAt: data.createdAt || new Date().toISOString(),
-        user: {
-          id: data.sender?.id || '',
-          username: data.sender?.username || data.senderName || 'Viewer',
-          displayName: data.sender?.displayName || data.senderName || 'Viewer',
-          avatarUrl: data.sender?.avatarUrl || null,
-        },
-      };
-      setMessages((prev) => [...prev, giftMsg]);
+      const giftMsgId = data.id || `gift-${Date.now()}-${Math.random()}`;
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === giftMsgId)) return prev;
+        const giftMsg: ChatMessage = {
+          id: giftMsgId,
+          streamId,
+          userId: data.sender?.id || '',
+          message: `🎁 ${data.senderName || data.sender?.displayName || 'Viewer'} sent ${data.giftName || 'Gift'} (${data.giftEmoji || '🎁'} x${data.quantity || 1})!`,
+          createdAt: data.createdAt || new Date().toISOString(),
+          user: {
+            id: data.sender?.id || '',
+            username: data.sender?.username || data.senderName || 'Viewer',
+            displayName: data.sender?.displayName || data.senderName || 'Viewer',
+            avatarUrl: data.sender?.avatarUrl || null,
+          },
+        };
+        return [...prev, giftMsg];
+      });
     };
 
     const handleMuted = () => setIsMutedOrBanned(true);
@@ -265,7 +269,6 @@ export default function StreamViewerPage() {
     socketClient.on('stream:viewer_count', handleViewerCount);
     socketClient.on('stream:status_changed', handleStatusChanged);
     socketClient.on('gift:sent', handleGiftEvent);
-    socketClient.on('gift:received', handleGiftEvent);
     socketClient.on('moderation:muted', handleMuted);
     socketClient.on('moderation:banned', handleBanned);
     socketClient.on('moderation:unbanned', handleUnbanned);
@@ -277,11 +280,11 @@ export default function StreamViewerPage() {
       socketClient.off('stream:viewer_count', handleViewerCount);
       socketClient.off('stream:status_changed', handleStatusChanged);
       socketClient.off('gift:sent', handleGiftEvent);
-      socketClient.off('gift:received', handleGiftEvent);
       socketClient.off('moderation:muted', handleMuted);
       socketClient.off('moderation:banned', handleBanned);
       socketClient.off('moderation:unbanned', handleUnbanned);
     };
+
   }, [streamId]);
 
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);

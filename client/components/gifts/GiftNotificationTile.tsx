@@ -20,32 +20,35 @@ export function GiftNotificationTile({ streamId }: { streamId: string }) {
     socketClient.connect();
 
     const handleGiftSent = (data: {
+      id?: string;
       senderName: string;
       giftName: string;
       giftEmoji: string;
       quantity: number;
       totalPrice: number;
     }) => {
-      const newEvent: GiftEvent = {
-        id: `gift-${Date.now()}-${Math.random()}`,
-        ...data,
-      };
-
-      setActiveGifts((prev) => [newEvent, ...prev].slice(0, 3)); // keep max 3 visible
+      const giftId = data.id || `gift-${Date.now()}-${Math.random()}`;
+      setActiveGifts((prev) => {
+        if (prev.some((g) => g.id === giftId)) return prev;
+        const newEvent: GiftEvent = {
+          id: giftId,
+          ...data,
+        };
+        return [newEvent, ...prev].slice(0, 3);
+      });
 
       // Auto dismiss after 3.5s
       setTimeout(() => {
-        setActiveGifts((prev) => prev.filter((g) => g.id !== newEvent.id));
+        setActiveGifts((prev) => prev.filter((g) => g.id !== giftId));
       }, 3500);
     };
 
     socketClient.on('gift:sent', handleGiftSent);
-    socketClient.on('gift:received', handleGiftSent);
 
     return () => {
       socketClient.off('gift:sent', handleGiftSent);
-      socketClient.off('gift:received', handleGiftSent);
     };
+
   }, [streamId]);
 
   if (activeGifts.length === 0) return null;

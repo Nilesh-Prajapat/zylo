@@ -115,7 +115,8 @@ export function UpcomingSection({ streams }: UpcomingSectionProps) {
       />
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
         {streams.map((stream) => {
-          const isReminded = reminderIds.includes(stream.id);
+          const isReminded =
+            reminderIds.includes(stream.id) || (Boolean(stream.publicId) && reminderIds.includes(stream.publicId!));
           return (
             <UpcomingCard
               key={stream.id}
@@ -126,6 +127,7 @@ export function UpcomingSection({ streams }: UpcomingSectionProps) {
             />
           );
         })}
+
       </div>
     </section>
   );

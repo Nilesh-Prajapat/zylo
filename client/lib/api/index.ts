@@ -205,41 +205,45 @@ export const streamsApi = {
   },
 
   async toggleReminder(streamId: string): Promise<{ reminded: boolean; message?: string }> {
+    let apiReminded: boolean | undefined = undefined;
     try {
       const res = await apiClient.post(`/streams/${streamId}/remind`);
-      return res.data.data;
-    } catch (e) {
-      if (typeof window !== 'undefined') {
-        const key = `zylo_reminders_demo`;
-        const current: string[] = JSON.parse(localStorage.getItem(key) || '[]');
-        let reminded = false;
-        let updated: string[];
-        if (current.includes(streamId)) {
-          updated = current.filter((id) => id !== streamId);
-          reminded = false;
-        } else {
-          updated = [...current, streamId];
-          reminded = true;
-        }
-        localStorage.setItem(key, JSON.stringify(updated));
-        return { reminded };
+      apiReminded = res.data.data?.reminded;
+    } catch (e) {}
+
+    if (typeof window !== 'undefined') {
+      const key = `zylo_reminders_demo`;
+      const current: string[] = JSON.parse(localStorage.getItem(key) || '[]');
+      let isSet = apiReminded !== undefined ? apiReminded : !current.includes(streamId);
+      let updated: string[];
+      if (isSet) {
+        updated = Array.from(new Set([...current, streamId]));
+      } else {
+        updated = current.filter((id) => id !== streamId);
       }
-      return { reminded: true };
+      localStorage.setItem(key, JSON.stringify(updated));
+      return { reminded: isSet };
     }
+
+    return { reminded: apiReminded ?? true };
   },
 
   async getMyReminders(): Promise<string[]> {
+    let apiStreamIds: string[] = [];
     try {
       const res = await apiClient.get('/streams/reminders/mine');
-      return res.data.data?.streamIds || [];
-    } catch (e) {
-      if (typeof window !== 'undefined') {
-        const key = `zylo_reminders_demo`;
-        return JSON.parse(localStorage.getItem(key) || '[]');
-      }
-      return [];
+      apiStreamIds = res.data.data?.streamIds || [];
+    } catch (e) {}
+
+    let localStreamIds: string[] = [];
+    if (typeof window !== 'undefined') {
+      const key = `zylo_reminders_demo`;
+      localStreamIds = JSON.parse(localStorage.getItem(key) || '[]');
     }
+
+    return Array.from(new Set([...apiStreamIds, ...localStreamIds]));
   },
+
 
 
   async getStreamById(id: string): Promise<{ stream: Stream; isFollowing?: boolean }> {

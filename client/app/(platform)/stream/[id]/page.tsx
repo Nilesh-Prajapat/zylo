@@ -110,51 +110,60 @@ export default function StreamViewerPage() {
   const replayVideoRef = useRef<HTMLVideoElement | null>(null);
   const roomRef = useRef<Room | null>(null);
 
-  const toggleFullscreen = () => {
-    const elem: any = containerRef.current || videoRef.current || replayVideoRef.current;
-    if (!elem) return;
-
+  const toggleFullscreen = async () => {
     const doc: any = document;
-
-    const isFs = !!(
+    const isFsNow = !!(
       doc.fullscreenElement ||
       doc.webkitFullscreenElement ||
       doc.mozFullScreenElement ||
-      doc.msFullscreenElement
+      doc.msFullscreenElement ||
+      isFullscreen
     );
 
-    if (!isFs) {
-      if (elem.requestFullscreen) {
-        elem.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {
-          if (videoRef.current && (videoRef.current as any).webkitEnterFullscreen) {
-            (videoRef.current as any).webkitEnterFullscreen();
+    if (!isFsNow) {
+      setIsFullscreen(true);
+      const elem: any = containerRef.current || videoRef.current || replayVideoRef.current;
+      if (elem) {
+        try {
+          if (elem.requestFullscreen) {
+            await elem.requestFullscreen();
+          } else if (elem.webkitRequestFullscreen) {
+            elem.webkitRequestFullscreen();
+          } else if (elem.mozRequestFullScreen) {
+            elem.mozRequestFullScreen();
+          } else if (elem.msRequestFullscreen) {
+            elem.msRequestFullscreen();
+          } else {
+            const vid: any = videoRef.current || replayVideoRef.current;
+            if (vid && vid.webkitEnterFullscreen) {
+              vid.webkitEnterFullscreen();
+            }
           }
-        });
-      } else if (elem.webkitRequestFullscreen) {
-        elem.webkitRequestFullscreen();
-        setIsFullscreen(true);
-      } else if (elem.mozRequestFullScreen) {
-        elem.mozRequestFullScreen();
-        setIsFullscreen(true);
-      } else if (elem.msRequestFullscreen) {
-        elem.msRequestFullscreen();
-        setIsFullscreen(true);
-      } else if (videoRef.current && (videoRef.current as any).webkitEnterFullscreen) {
-        (videoRef.current as any).webkitEnterFullscreen();
-        setIsFullscreen(true);
+        } catch (err) {
+          console.warn('Native requestFullscreen failed, using full-viewport fallback:', err);
+        }
       }
     } else {
-      if (doc.exitFullscreen) {
-        doc.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
-      } else if (doc.webkitExitFullscreen) {
-        doc.webkitExitFullscreen();
-        setIsFullscreen(false);
-      } else if (doc.mozCancelFullScreen) {
-        doc.mozCancelFullScreen();
-        setIsFullscreen(false);
-      } else if (doc.msExitFullscreen) {
-        doc.msExitFullscreen();
-        setIsFullscreen(false);
+      setIsFullscreen(false);
+      try {
+        if (
+          doc.fullscreenElement ||
+          doc.webkitFullscreenElement ||
+          doc.mozFullScreenElement ||
+          doc.msFullscreenElement
+        ) {
+          if (doc.exitFullscreen) {
+            await doc.exitFullscreen();
+          } else if (doc.webkitExitFullscreen) {
+            doc.webkitExitFullscreen();
+          } else if (doc.mozCancelFullScreen) {
+            doc.mozCancelFullScreen();
+          } else if (doc.msExitFullscreen) {
+            doc.msExitFullscreen();
+          }
+        }
+      } catch (err) {
+        console.warn('Exit native fullscreen error:', err);
       }
     }
   };
@@ -168,19 +177,52 @@ export default function StreamViewerPage() {
         doc.mozFullScreenElement ||
         doc.msFullscreenElement
       );
-      setIsFullscreen(isFs);
+      if (!isFs) {
+        setIsFullscreen(false);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsFullscreen(false);
+      }
     };
 
     document.addEventListener('fullscreenchange', handleFsChange);
     document.addEventListener('webkitfullscreenchange', handleFsChange);
     document.addEventListener('mozfullscreenchange', handleFsChange);
     document.addEventListener('MSFullscreenChange', handleFsChange);
+    window.addEventListener('keydown', handleKeyDown);
+
+    const liveVid: any = videoRef.current;
+    const replayVid: any = replayVideoRef.current;
+    const onBegin = () => setIsFullscreen(true);
+    const onEnd = () => setIsFullscreen(false);
+
+    if (liveVid) {
+      liveVid.addEventListener('webkitbeginfullscreen', onBegin);
+      liveVid.addEventListener('webkitendfullscreen', onEnd);
+    }
+    if (replayVid) {
+      replayVid.addEventListener('webkitbeginfullscreen', onBegin);
+      replayVid.addEventListener('webkitendfullscreen', onEnd);
+    }
 
     return () => {
       document.removeEventListener('fullscreenchange', handleFsChange);
       document.removeEventListener('webkitfullscreenchange', handleFsChange);
       document.removeEventListener('mozfullscreenchange', handleFsChange);
       document.removeEventListener('MSFullscreenChange', handleFsChange);
+      window.removeEventListener('keydown', handleKeyDown);
+
+      if (liveVid) {
+        liveVid.removeEventListener('webkitbeginfullscreen', onBegin);
+        liveVid.removeEventListener('webkitendfullscreen', onEnd);
+      }
+      if (replayVid) {
+        replayVid.removeEventListener('webkitbeginfullscreen', onBegin);
+        replayVid.removeEventListener('webkitendfullscreen', onEnd);
+      }
     };
   }, []);
 
@@ -434,7 +476,14 @@ export default function StreamViewerPage() {
       {/* Main Video & Details Viewport */}
       <div className="flex-1 flex flex-col min-w-0 p-4 lg:p-6">
         {/* Media Player Container */}
-        <div ref={containerRef} className="relative aspect-video w-full overflow-hidden rounded-3xl bg-black border border-zylo-border shadow-xl">
+        <div
+          ref={containerRef}
+          className={`relative overflow-hidden bg-black shadow-xl transition-all ${
+            isFullscreen
+              ? 'fixed inset-0 z-[99999] h-screen w-screen rounded-none border-none aspect-auto'
+              : 'aspect-video w-full rounded-3xl border border-zylo-border'
+          }`}
+        >
           {/* Top-Right Realtime Gift Notification Overlay Tile */}
           <GiftNotificationTile streamId={stream?.id || ''} />
 

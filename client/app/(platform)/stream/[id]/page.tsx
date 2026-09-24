@@ -111,60 +111,93 @@ export default function StreamViewerPage() {
   const roomRef = useRef<Room | null>(null);
 
   const toggleFullscreen = async () => {
+    const videoElem: any = videoRef.current || replayVideoRef.current;
+    const containerElem: any = containerRef.current;
+    const targetElem: any = videoElem || containerElem;
+
+    if (!targetElem) return;
+
     const doc: any = document;
     const isFsNow = !!(
       doc.fullscreenElement ||
       doc.webkitFullscreenElement ||
       doc.mozFullScreenElement ||
       doc.msFullscreenElement ||
+      (videoElem && videoElem.webkitDisplayingFullscreen) ||
       isFullscreen
     );
 
     if (!isFsNow) {
-      setIsFullscreen(true);
-      const elem: any = containerRef.current || videoRef.current || replayVideoRef.current;
-      if (elem) {
-        try {
-          if (elem.requestFullscreen) {
-            await elem.requestFullscreen();
-          } else if (elem.webkitRequestFullscreen) {
-            elem.webkitRequestFullscreen();
-          } else if (elem.mozRequestFullScreen) {
-            elem.mozRequestFullScreen();
-          } else if (elem.msRequestFullscreen) {
-            elem.msRequestFullscreen();
-          } else {
-            const vid: any = videoRef.current || replayVideoRef.current;
-            if (vid && vid.webkitEnterFullscreen) {
-              vid.webkitEnterFullscreen();
+      try {
+        // 1. iOS Safari Hardware Native Video Player with Auto Landscape Rotation
+        if (videoElem && typeof videoElem.webkitEnterFullscreen === 'function') {
+          videoElem.webkitEnterFullscreen();
+          setIsFullscreen(true);
+          return;
+        }
+
+        // 2. Standard HTML5 Native Fullscreen Request (Targeting Video or Container)
+        if (targetElem.requestFullscreen) {
+          await targetElem.requestFullscreen();
+        } else if (targetElem.webkitRequestFullscreen) {
+          targetElem.webkitRequestFullscreen();
+        } else if (targetElem.mozRequestFullScreen) {
+          targetElem.mozRequestFullScreen();
+        } else if (targetElem.msRequestFullscreen) {
+          targetElem.msRequestFullscreen();
+        }
+
+        // 3. Screen Orientation Lock (Auto-rotates mobile device into landscape like Chrome/YouTube)
+        if (window.screen && (window.screen as any).orientation && typeof (window.screen as any).orientation.lock === 'function') {
+          (window.screen as any).orientation.lock('landscape').catch(() => {
+            // Orientation lock may not be supported on desktop devices or if user preference blocks it
+          });
+        }
+
+        setIsFullscreen(true);
+      } catch (err) {
+        console.warn('Native requestFullscreen failed on target, trying fallback:', err);
+        const altElem: any = targetElem === videoElem ? containerElem : videoElem;
+        if (altElem) {
+          try {
+            if (altElem.requestFullscreen) {
+              await altElem.requestFullscreen();
+            } else if (altElem.webkitRequestFullscreen) {
+              altElem.webkitRequestFullscreen();
             }
+            if (window.screen && (window.screen as any).orientation && typeof (window.screen as any).orientation.lock === 'function') {
+              (window.screen as any).orientation.lock('landscape').catch(() => {});
+            }
+            setIsFullscreen(true);
+          } catch (altErr) {
+            console.error('Secondary fullscreen attempt failed:', altErr);
           }
-        } catch (err) {
-          console.warn('Native requestFullscreen failed, using full-viewport fallback:', err);
         }
       }
     } else {
-      setIsFullscreen(false);
+      // Exit fullscreen & unlock mobile screen orientation back to normal portrait/auto
       try {
-        if (
-          doc.fullscreenElement ||
-          doc.webkitFullscreenElement ||
-          doc.mozFullScreenElement ||
-          doc.msFullscreenElement
-        ) {
-          if (doc.exitFullscreen) {
-            await doc.exitFullscreen();
-          } else if (doc.webkitExitFullscreen) {
-            doc.webkitExitFullscreen();
-          } else if (doc.mozCancelFullScreen) {
-            doc.mozCancelFullScreen();
-          } else if (doc.msExitFullscreen) {
-            doc.msExitFullscreen();
-          }
+        if (window.screen && (window.screen as any).orientation && typeof (window.screen as any).orientation.unlock === 'function') {
+          try {
+            (window.screen as any).orientation.unlock();
+          } catch (e) {}
+        }
+
+        if (videoElem && typeof videoElem.webkitExitFullscreen === 'function') {
+          videoElem.webkitExitFullscreen();
+        } else if (doc.exitFullscreen) {
+          await doc.exitFullscreen();
+        } else if (doc.webkitExitFullscreen) {
+          doc.webkitExitFullscreen();
+        } else if (doc.mozCancelFullScreen) {
+          doc.mozCancelFullScreen();
+        } else if (doc.msExitFullscreen) {
+          doc.msExitFullscreen();
         }
       } catch (err) {
         console.warn('Exit native fullscreen error:', err);
       }
+      setIsFullscreen(false);
     }
   };
 
@@ -178,12 +211,22 @@ export default function StreamViewerPage() {
         doc.msFullscreenElement
       );
       if (!isFs) {
+        if (window.screen && (window.screen as any).orientation && typeof (window.screen as any).orientation.unlock === 'function') {
+          try {
+            (window.screen as any).orientation.unlock();
+          } catch (e) {}
+        }
         setIsFullscreen(false);
       }
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (window.screen && (window.screen as any).orientation && typeof (window.screen as any).orientation.unlock === 'function') {
+          try {
+            (window.screen as any).orientation.unlock();
+          } catch (err) {}
+        }
         setIsFullscreen(false);
       }
     };
@@ -197,7 +240,14 @@ export default function StreamViewerPage() {
     const liveVid: any = videoRef.current;
     const replayVid: any = replayVideoRef.current;
     const onBegin = () => setIsFullscreen(true);
-    const onEnd = () => setIsFullscreen(false);
+    const onEnd = () => {
+      if (window.screen && (window.screen as any).orientation && typeof (window.screen as any).orientation.unlock === 'function') {
+        try {
+          (window.screen as any).orientation.unlock();
+        } catch (e) {}
+      }
+      setIsFullscreen(false);
+    };
 
     if (liveVid) {
       liveVid.addEventListener('webkitbeginfullscreen', onBegin);
